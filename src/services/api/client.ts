@@ -1,4 +1,6 @@
-import { translate, type TranslationMessage } from '../../i18n/index.js'
+import { getActiveChannel, getChannelSnapshot, type Channel } from '../channels.js'
+import { ApiError, readErrorResponse, request } from './http.js'
+import { streamOpenAI } from './openai.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
@@ -9,38 +11,11 @@ import type {
   MessageStreamEvent,
 } from './types.js'
 
-/** 构建期 API 地址，默认 https://api.deepseek.com；本地开发支持开发服务器代理 */
+export { ApiError, request }
+export type { ApiErrorKind } from './http.js'
 export const API_ORIGIN = __API_ORIGIN__
-/** Anthropic 兼容接口的前缀 */
 const ANTHROPIC_BASE_URL = `${API_ORIGIN}/anthropic/v1`
-/** 引用 Files API 上传的图片、调用 Anthropic 兼容 Files API 时必须携带 */
 const FILES_BETA = 'files-api-2025-04-14'
-
-export type ApiErrorKind =
-  /** 非 2xx 响应 */
-  | 'http'
-  /** 流中返回的错误帧（如等待生成超时），随后连接关闭 */
-  | 'stream'
-  /** 请求没有到达服务端（断网、跨域被拦截等） */
-  | 'network'
-  /** 流在 message_stop 之前结束 */
-  | 'interrupted'
-  /** 响应不符合协议（如非 SSE 响应） */
-  | 'protocol'
-
-export class ApiError extends Error {
-  readonly localMessage?: TranslationMessage
-
-  constructor(
-    readonly kind: ApiErrorKind,
-    message: string | TranslationMessage,
-    readonly status?: number
-  ) {
-    super(typeof message === 'string' ? message : translate(message.key, message.params))
-    this.name = 'ApiError'
-    this.localMessage = typeof message === 'string' ? undefined : message
-  }
-}
 
 const isErrorBody = (value: unknown): value is ApiErrorBody =>
   typeof value === 'object' &&
@@ -48,38 +23,9 @@ const isErrorBody = (value: unknown): value is ApiErrorBody =>
   'error' in value &&
   typeof (value as ApiErrorBody).error?.message === 'string'
 
-const readErrorResponse = async (
-  response: Response,
-  kind: 'http' | 'protocol' = 'http',
-  fallback = response.statusText
-): Promise<ApiError> => {
-  const text = await response.text().catch(() => '')
-  let message = text || fallback
-  try {
-    const body: unknown = JSON.parse(text)
-    if (isErrorBody(body)) {
-      message = body.error.message
-    }
-  } catch {
-    // 非 JSON 响应体直接展示原文
-  }
-  return new ApiError(kind, message, response.status)
-}
-
-export const request = async (url: string, init: RequestInit): Promise<Response> => {
-  let response: Response
-  try {
-    response = await fetch(url, init)
-  } catch (error) {
-    if (init.signal?.aborted) {
-      throw error
-    }
-    throw new ApiError('network', error instanceof Error ? error.message : String(error))
-  }
-  if (!response.ok) {
-    throw await readErrorResponse(response)
-  }
-  return response
+export const requireDeepseekChannel = () => {
+  if (getActiveChannel().protocol !== 'deepseek')
+    {throw new ApiError('protocol', { key: 'channelFeatureUnavailable' })}
 }
 
 const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
@@ -91,7 +37,7 @@ const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string>
 
 /** 用 GET /models 校验 API Key（不产生费用） */
 export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
-  await request(`${API_ORIGIN}/models`, {
+  await request(`${getActiveChannel().baseUrl}/models`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${apiKey}` },
     signal,
@@ -108,6 +54,7 @@ export const uploadFile = async (
   purpose: FilePurpose | null,
   signal?: AbortSignal
 ): Promise<FileObject> => {
+  requireDeepseekChannel()
   const form = new FormData()
   if (purpose) {
     form.append('purpose', purpose)
@@ -124,6 +71,7 @@ export const uploadFile = async (
 
 /** DELETE /anthropic/v1/files/{file_id} */
 export const deleteFile = async (apiKey: string, fileId: string): Promise<void> => {
+  requireDeepseekChannel()
   await request(`${ANTHROPIC_BASE_URL}/files/${encodeURIComponent(fileId)}`, {
     method: 'DELETE',
     headers: anthropicHeaders(apiKey, true),
@@ -144,8 +92,13 @@ const hasFile = (body: CreateMessageRequest) =>
 export async function* streamMessage(
   apiKey: string,
   body: CreateMessageRequest,
-  signal: AbortSignal
+  signal: AbortSignal,
+  channel: Channel = getChannelSnapshot()
 ): AsyncGenerator<MessageStreamEvent> {
+  if (channel.protocol === 'openai') {
+    yield* streamOpenAI({ ...channel, apiKey }, body, signal)
+    return
+  }
   const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
     method: 'POST',
     headers: {

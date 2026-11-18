@@ -1,4 +1,4 @@
-import { ApiError, API_ORIGIN, request } from './client.js'
+import { ApiError, API_ORIGIN, request, requireDeepseekChannel } from './client.js'
 
 /**
  * 语音接口：
@@ -19,6 +19,7 @@ export const transcribe = async (
   audio: Blob,
   signal?: AbortSignal
 ): Promise<string> => {
+  requireDeepseekChannel()
   const form = new FormData()
   form.append('file', audio, 'recording.wav')
   const response = await request(`${TOOLS_BASE_URL}/asr`, {
@@ -52,6 +53,7 @@ export const synthesize = async (
   voice: TtsVoice,
   signal: AbortSignal
 ): Promise<ReadableStream<Uint8Array>> => {
+  requireDeepseekChannel()
   const response = await request(`${TOOLS_BASE_URL}/tts`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

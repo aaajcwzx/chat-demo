@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
 import { normalizeLocation, type UserLocation } from './location.js'
+import { getActiveChannel, setActiveApiKey, useChannels } from './channels.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
@@ -88,7 +89,7 @@ const initialThemePreference = (): ThemePreference => {
 const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
 
 export const useSettings = create<Settings>(() => ({
-  apiKey: read(KEYS.apiKey),
+  apiKey: getActiveChannel().apiKey || null,
   locale: initialLocale(),
   location: initialLocation(),
   themePreference: initialThemePreference(),
@@ -120,9 +121,11 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
 }
 
 export const setApiKey = (apiKey: string | null) => {
-  write(KEYS.apiKey, apiKey)
-  useSettings.setState({ apiKey })
+  setActiveApiKey(apiKey)
 }
+
+// Retain the legacy settings API for the official template's existing callers.
+useChannels.subscribe(() => useSettings.setState({ apiKey: getActiveChannel().apiKey || null }))
 
 export const setThinking = (thinking: boolean) => {
   write(KEYS.thinking, String(thinking))

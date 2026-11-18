@@ -1,3 +1,4 @@
+import { useActiveChannel } from '../../services/channels.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TranslationMessage } from '../../i18n/index.js'
 import { transcribe } from '../../services/api/speech.js'
@@ -30,6 +31,7 @@ const describeRecordingError = (error: unknown): TranslationMessage => {
  * 转写中再次点击取消。录满 120 秒自动结束。
  */
 export const useVoiceInput = (onText: (text: string) => void) => {
+  const activeChannel = useActiveChannel()
   const [status, setStatus] = useState<VoiceInputStatus>('idle')
   /** 本次录音已录秒数，只在录音中递增 */
   const [seconds, setSeconds] = useState(0)
@@ -51,6 +53,10 @@ export const useVoiceInput = (onText: (text: string) => void) => {
     cancelOperation()
     setStatus('idle')
   }, [cancelOperation])
+
+  useEffect(() => {
+    cancel()
+  }, [activeChannel, cancel])
 
   const finish = useCallback(async () => {
     const recording = recordingRef.current
@@ -97,7 +103,7 @@ export const useVoiceInput = (onText: (text: string) => void) => {
   }, [cancel])
 
   const toggle = useCallback(async () => {
-    if (!AVAILABLE) {
+    if (!AVAILABLE || activeChannel.protocol !== 'deepseek') {
       return
     }
     if (status === 'recording') {
@@ -128,7 +134,7 @@ export const useVoiceInput = (onText: (text: string) => void) => {
         showToast(describeRecordingError(error))
       }
     }
-  }, [status, finish, cancel])
+  }, [activeChannel, status, finish, cancel])
 
   useEffect(() => {
     if (status !== 'recording') {
@@ -148,5 +154,12 @@ export const useVoiceInput = (onText: (text: string) => void) => {
   /** 当前录音的频谱分析节点，未录音时为 null */
   const getAnalyser = useCallback(() => recordingRef.current?.analyser ?? null, [])
 
-  return { status, seconds, getAnalyser, toggle, cancel, available: AVAILABLE }
+  return {
+    status,
+    seconds,
+    getAnalyser,
+    toggle,
+    cancel,
+    available: AVAILABLE && activeChannel.protocol === 'deepseek',
+  }
 }

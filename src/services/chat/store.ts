@@ -5,6 +5,7 @@ import type { ChatModel, CreateMessageRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
+import { getChannelSnapshot, type Channel } from '../channels.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -256,14 +257,19 @@ export const bindChatPersistence = () => {
 /** 按当前开关创建回复：深度思考对应 thinking，智能搜索控制 deepseek_web_search。 */
 const createReply = (): AssistantMessage => {
   const { thinking, search } = useSettings.getState()
+  const channel = getChannelSnapshot()
+  const enhanced = channel.protocol === 'deepseek'
   return {
     id: createId(),
     role: 'assistant',
     createdAt: Date.now(),
-    model: MODEL,
-    thinking,
-    search,
-    prefix: true,
+    model: channel.model,
+    channelId: channel.id,
+    channelName: channel.name,
+    channelProtocol: channel.protocol,
+    thinking: enhanced && thinking,
+    search: enhanced && search,
+    prefix: enhanced,
     status: 'pending',
     blocks: [],
   }
@@ -813,12 +819,27 @@ const refreshRequest = (sessionId: string, request: Request): Request => {
  * - 历史轮次（仅进入上下文的）中没有 serverId 的附件，多为导入的图片：从最新的消息往前逐张补传，
  *   失败静默跳过，该附件不进入本次请求，下次发送时再试。
  */
-const prepareFiles = async (sessionId: string, request: Request, signal: AbortSignal) => {
+const prepareFiles = async (
+  sessionId: string,
+  request: Request,
+  signal: AbortSignal,
+  channel: Channel
+) => {
+  if (channel.protocol === 'openai') {
+    if (request.question.files.length) {throw new ApiError('protocol', { key: 'channelTextOnly' })}
+    return {
+      history: request.history.map((message) =>
+        message.role === 'user' ? { ...message, files: [] } : message
+      ),
+      question: { ...request.question, files: [] },
+      prefix: undefined,
+    }
+  }
   const epoch = historyEpoch
   // 服务端判定 file_id 失效时会清掉会话里的 serverId，先用最新消息替换请求快照，
   // 否则快照里仍是旧 id，补传会直接复用它。
   request = refreshRequest(sessionId, request)
-  const apiKey = useSettings.getState().apiKey ?? ''
+  const apiKey = channel.apiKey
   const serverIds = new Map<string, string>()
   // 停止生成立即生效；上传本身不取消（输入框与其他消息可能共用同一任务），完成后照常写回 serverId
   const aborted = new Promise<never>((_, reject) => {
@@ -960,7 +981,20 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
+  const channel = getChannelSnapshot(initial.channelId)
   const controller = new AbortController()
+  if (channel.protocol === 'openai' && !getSession(sessionId)?.title) {
+    const firstQuestion =
+      request.history.find((message) => message.role === 'user') ?? request.question
+    const title = Array.from(
+      firstQuestion.role === 'user'
+        ? firstQuestion.content.trim().replace(/\s+/g, ' ')
+        : request.question.content
+    )
+      .slice(0, 28)
+      .join('')
+    if (title) {updateSession(sessionId, (session) => ({ ...session, title }))}
+  }
   if (!getSession(sessionId)?.title) {
     titleRequests.add(controller)
   }
@@ -977,10 +1011,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   try {
     for (let attempt = 0; ; attempt += 1) {
       /** 附件补齐前出错属于上传失败，请求还没有发出 */
-      let preparing = true
+      let preparing = channel.protocol === 'deepseek'
       let receivedContent = false
       try {
-        const prepared = await prepareFiles(sessionId, request, controller.signal)
+        const prepared = await prepareFiles(sessionId, request, controller.signal, channel)
         preparing = false
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
         const latestReminder = prepared.prefix
@@ -997,17 +1031,19 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
           latestReminder
         )
         const events = streamMessage(
-          useSettings.getState().apiKey ?? '',
+          channel.apiKey,
           {
-            model: initial.model ?? MODEL,
-            system: SYSTEM_PROMPT,
+            model: initial.model ?? channel.model,
+            system:
+              channel.protocol === 'deepseek' ? SYSTEM_PROMPT : 'You are a helpful AI assistant.',
             messages,
             thinking: { type: initial.thinking ? 'enabled' : 'disabled' },
             safety_check: SAFETY_CHECK,
             tools: serverTools(initial.search ?? false),
             ...(titleRequests.has(controller) ? { title: { enabled: true } } : {}),
           },
-          controller.signal
+          controller.signal,
+          channel
         )
         const blockIndexes = new Map<number, number>()
         for await (const event of events) {

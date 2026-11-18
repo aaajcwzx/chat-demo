@@ -8,6 +8,7 @@ import {
   IconThinkOutline14,
 } from '../base/icons.js'
 import { setSearch, setThinking, useSettings } from '../../services/settings.js'
+import { useActiveChannel } from '../../services/channels.js'
 import { useIsMobile } from '../../app/viewport.js'
 import { sendMessage, stopReply, useChatStore } from '../../services/chat/store.js'
 import {
@@ -32,6 +33,7 @@ import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
 import { Spectrum } from './Spectrum.js'
 import { useTranslate } from '../../i18n/index.js'
+import { ChannelIndicator } from './ChannelIndicator.js'
 import styles from './ChatInput.module.css'
 
 /** 输入框：自适应高度的文本框 + 文件 + 深度思考与智能搜索开关 + 语音输入 + 发送 / 停止 */
@@ -42,6 +44,7 @@ export const ChatInput = memo(function ChatInput({ sessionId }: { sessionId: str
 
 const Input = ({ sessionId }: { sessionId: string | null }) => {
   const t = useTranslate()
+  const enhanced = useActiveChannel().protocol === 'deepseek'
   const draft = useDrafts((state) => state.drafts.get(sessionId) ?? EMPTY_DRAFT)
   const { text, attachments } = draft
   const setText = (value: string) => setDraftText(sessionId, value)
@@ -75,6 +78,10 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
   }, [t])
 
   const acceptFiles = (files: File[]) => {
+    if (!enhanced) {
+      showToast({ key: 'channelFeatureUnavailable', type: 'error' })
+      return
+    }
     if (files.length === 0 || useChatStore.getState().importingHistory || !ensureApiKey()) {
       return
     }
@@ -141,6 +148,10 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       return
     }
     // 文本与上传完成态由提交动作读取最新快照，不使用上一次渲染的草稿。
+    if (!enhanced && attachments.length > 0) {
+      showToast({ key: 'channelTextOnly', type: 'error' })
+      return
+    }
     if (!ensureApiKey() || !sendMessage(sessionId)) {
       return
     }
@@ -161,6 +172,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         }
       }}
     >
+      <ChannelIndicator />
       <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
       <div className={styles.textareaWrapper}>
         <textarea
@@ -202,24 +214,26 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
       <div className={styles.functionRow}>
         {/* 深度思考 / 智能搜索开关，tooltip 在按钮上方 */}
         <div ref={togglesRef} className={styles.toggles}>
-          <Tooltip content={t('deactivatedThinkTooltip')}>
+          <Tooltip content={t(enhanced ? 'deactivatedThinkTooltip' : 'channelFeatureUnavailable')}>
             <button
               type="button"
-              className={clsx(styles.toggle, thinking && styles.selected)}
+              className={clsx(styles.toggle, enhanced && thinking && styles.selected)}
               aria-label={t('thinkingSwitch')}
-              aria-pressed={thinking}
+              aria-pressed={enhanced && thinking}
+              disabled={!enhanced}
               onClick={() => setThinking(!thinking)}
             >
               <IconThinkOutline14 />
               <span className={styles.toggleLabel}>{t('thinkingSwitch')}</span>
             </button>
           </Tooltip>
-          <Tooltip content={t('deactivatedSearchTooltip')}>
+          <Tooltip content={t(enhanced ? 'deactivatedSearchTooltip' : 'channelFeatureUnavailable')}>
             <button
               type="button"
-              className={clsx(styles.toggle, search && styles.selected)}
+              className={clsx(styles.toggle, enhanced && search && styles.selected)}
               aria-label={t('search')}
-              aria-pressed={search}
+              aria-pressed={enhanced && search}
+              disabled={!enhanced}
               onClick={() => setSearch(!search)}
             >
               <IconGlobeLanguageOutline14 />
@@ -230,7 +244,7 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         <div className={styles.right}>
           <VoiceButton
             status={voice.status}
-            disabled={!voice.available}
+            disabled={!enhanced || !voice.available}
             seconds={voice.seconds}
             onClick={() => {
               if (
@@ -245,8 +259,8 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
             size="m"
             tone="primary"
             icon={<IconPaperclipOutline16 />}
-            tooltip={t('uploadFile')}
-            disabled={importingHistory}
+            tooltip={t(enhanced ? 'uploadFile' : 'channelFeatureUnavailable')}
+            disabled={importingHistory || !enhanced}
             onClick={() => ensureApiKey() && fileInputRef.current?.click()}
           />
           <input

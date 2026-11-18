@@ -1,3 +1,4 @@
+import { useActiveChannel } from '../services/channels.js'
 import { useEffect } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
@@ -28,6 +29,7 @@ import styles from './App.module.css'
 
 export const App = () => {
   const t = useTranslate()
+  const channel = useActiveChannel()
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)
   // 移动端侧边栏以独立抽屉管理开合状态
@@ -63,7 +65,7 @@ export const App = () => {
   // 搜索结果面板只属于当前会话
   useEffect(closeSearchPanel, [activeId])
   // 切换会话时停止朗读
-  useEffect(stopReadAloud, [activeId])
+  useEffect(stopReadAloud, [activeId, channel])
   // 移动端选中会话、切换布局后收起抽屉
   useEffect(closeMobileSider, [activeId, isMobile])
 

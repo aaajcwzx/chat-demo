@@ -1,6 +1,67 @@
 import type { zh } from './zh.js'
 
 export const en = {
+  channelStreamInterrupted:
+    'The response connection was interrupted. You can regenerate the answer.',
+  channelSettingsTitle: 'Model services',
+  channelOfficial: 'DeepSeek official',
+  channelSelect: 'Select channel',
+  channelCurrent: 'Current channel and model',
+  channelNew: 'New channel',
+  channelAdd: 'Add channel',
+  channelInUse: 'In use',
+  channelOfficialHint: 'Enter your API key to use the official DeepSeek service.',
+  channelCustomHint: 'For OpenAI-compatible services such as New API, One API, and OpenRouter.',
+  channelName: 'Channel name',
+  channelNamePlaceholder: 'For example: My gateway',
+  channelProtocol: 'API format',
+  channelProtocolOpenAI: 'OpenAI compatible · Chat Completions',
+  channelBaseUrl: 'API base URL',
+  channelUrlHint:
+    'Use the API prefix, such as /v1 or /api/v1. Complete chat endpoints are normalized automatically.',
+  channelModel: 'Model',
+  channelModelPlaceholder: 'Select or enter a model ID',
+  channelModelHint: 'Use the channel’s exact model ID. Model aliases can be entered manually.',
+  channelKeyHint:
+    'Enter a key if authentication is required. Local services without authentication can leave this blank.',
+  channelFetchModels: 'Get models',
+  channelTest: 'Test connection',
+  channelTesting: 'Testing…',
+  channelSaveUse: 'Save and use',
+  channelShowKey: 'Show',
+  channelHideKey: 'Hide',
+  channelSaved: 'Using channel: {name}',
+  channelTestSuccess: 'Connected to the model-list API; found {count} models.',
+  channelModelsEmpty: 'Connected, but no models were listed. Enter a model ID manually.',
+  channelModelsUnavailable:
+    'This service does not provide a readable model list. Check the API URL or enter a model ID manually.',
+  channelInvalidModelsResponse:
+    'The response is not a standard model list. Check the API URL or enter a model ID manually.',
+  channelAuthError:
+    'The API key is invalid or lacks permission for this address. Check the channel credentials.',
+  channelNetworkError:
+    'Cannot connect. Check the network, API URL, and whether the service allows cross-origin requests from this site.',
+  channelTestFailed: 'Connection test failed: {message}',
+  channelInvalidUrl: 'Enter a valid HTTP(S) API base URL, such as https://api.example.com/v1.',
+  channelNameRequired: 'Enter a channel name.',
+  channelModelRequired: 'Enter a model ID or get the model list first.',
+  channelKeyRequired: 'Enter a DeepSeek API key.',
+  channelFeatureUnavailable: 'This channel does not provide this feature',
+  channelTextOnly:
+    'This channel supports text only. Remove attachments from this question or switch to the official DeepSeek channel.',
+  channelInvalidStream: 'The channel returned an unrecognized stream. Check the API format.',
+  channelEmptyResponse: 'The channel returned no recognizable content. Check the model and API.',
+  channelCapabilities: 'Capabilities',
+  channelOfficialCapabilities: 'Text, thinking, search, attachments, and speech',
+  channelCustomCapabilities: 'Multi-turn text, streaming, stopping, and regeneration',
+  channelBusy: 'Wait for generation or uploads to finish before saving or switching channels.',
+  channelDelete: 'Delete channel',
+  channelDeleteTitle: 'Delete this channel?',
+  channelDeleteHint: 'Delete the configuration for “{name}”. Chat history is retained.',
+  channelDeleteActiveHint:
+    'Delete “{name}” and switch to DeepSeek official. Chat history is retained.',
+  channelCheckSettings: 'Check channel settings',
+
   welcomeMessageChat250808: 'How can I help you?',
   contentCaveat: 'AI-generated, for reference only',
   expandSiderbarButton: 'Open sidebar',

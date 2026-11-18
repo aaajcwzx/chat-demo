@@ -1,3 +1,4 @@
+import { useActiveChannel } from '../../services/channels.js'
 import { useTranslate } from '../../i18n/index.js'
 import clsx from 'clsx'
 import { memo } from 'react'
@@ -44,6 +45,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   onSelectVersion: SelectMessageVersion
 }) {
   const t = useTranslate()
+  const enhanced = useActiveChannel().protocol === 'deepseek'
   const view = useReplyView(message, streaming)
   const panelEntry = useSearchPanel((state) => state.entry)
   const notice = streaming ? null : describeReply(message)
@@ -102,13 +104,13 @@ export const AssistantMessage = memo(function AssistantMessage({
                 <button
                   type="button"
                   className={styles.noticeAction}
-                  onClick={() => openSettings('data')}
+                  onClick={() => openSettings('service', message.channelId)}
                 >
                   {t('changeApiKey')}
                 </button>
               </>
             ) : null}
-            {notice.action === 'topUp' ? (
+            {notice.action === 'topUp' && message.channelProtocol !== 'openai' ? (
               <>
                 {' '}
                 <a
@@ -120,6 +122,15 @@ export const AssistantMessage = memo(function AssistantMessage({
                   {t('topUp')}
                 </a>
               </>
+            ) : null}
+            {notice.action === 'topUp' && message.channelProtocol === 'openai' ? (
+              <button
+                type="button"
+                className={styles.noticeAction}
+                onClick={() => openSettings('service', message.channelId)}
+              >
+                {t('channelCheckSettings')}
+              </button>
             ) : null}
           </span>
         </div>
@@ -157,7 +168,7 @@ export const AssistantMessage = memo(function AssistantMessage({
               }}
             />
           </div>
-          {isLast && canContinueReply(message) ? (
+          {isLast && enhanced && canContinueReply(message) ? (
             <Button
               variant="outlined"
               size="s"

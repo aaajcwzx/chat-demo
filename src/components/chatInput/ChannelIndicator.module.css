@@ -1,0 +1,28 @@
+.indicator {
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0 2px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.indicator > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.indicator > svg {
+  flex-shrink: 0;
+}
+.indicator:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-primary-fill);
+  border-radius: 4px;
+}

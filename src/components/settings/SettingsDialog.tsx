@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { useRef, useState, type ReactNode } from 'react'
 import {
   IconDarkOutline16,
+  IconGlobeLanguageOutline14,
   IconDataOutline16,
   IconDownloadOutline16,
   IconFollowsystemOutline16,
@@ -15,7 +16,6 @@ import {
   exportHistory,
   importHistory,
 } from '../../services/chat/backup.js'
-import { useIsMobile } from '../../app/viewport.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
@@ -32,7 +32,8 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
-import { ApiKeyConfirm, ApiKeyField, useApiKeyEditor } from './ApiKeyField.js'
+import { ChannelSettings } from './ChannelSettings.js'
+import { getChannelSnapshot } from '../../services/channels.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
 
@@ -51,16 +52,18 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
     label: 'settingDialogAsideGeneralOptionLabel',
     icon: <IconSettingsOutline16 />,
   },
+  { value: 'service', label: 'channelSettingsTitle', icon: <IconGlobeLanguageOutline14 /> },
   { value: 'data', label: 'settingDialogAsideDataOptionLabel', icon: <IconDataOutline16 /> },
 ]
 
 const SettingsContent = () => {
   const t = useTranslate()
-  const isMobile = useIsMobile()
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
+  const [expandedService, setExpandedService] = useState(
+    () => getChannelSnapshot(useSettingsDialog.getState().channelId).protocol === 'openai'
+  )
   // 切换分组不丢失正在输入的 API Key 与导入状态
-  const apiKeyEditor = useApiKeyEditor()
   const historyImport = useHistoryImport()
   const historyDelete = useHistoryDelete()
   const replacingHistory = useChatStore((state) => state.importingHistory)
@@ -70,7 +73,10 @@ const SettingsContent = () => {
       <Modal
         title={t('settings')}
         closable
-        className={styles.dialog}
+        className={clsx(
+          styles.dialog,
+          section === 'service' && expandedService && styles.serviceDialog
+        )}
         mainClassName={styles.dialogMain}
         onClose={() => {
           if (!historyDelete.busy) {
@@ -93,7 +99,10 @@ const SettingsContent = () => {
             </button>
           ))}
         </div>
-        <div role="tabpanel" className={styles.content}>
+        <div
+          role="tabpanel"
+          className={clsx(styles.content, section === 'service' && styles.serviceContent)}
+        >
           {section === 'general' ? (
             <>
               <ThemeSetting />
@@ -101,9 +110,8 @@ const SettingsContent = () => {
               <TtsVoiceSetting />
               <LocationSetting />
             </>
-          ) : (
+          ) : section === 'data' ? (
             <>
-              <ApiKeyField editor={apiKeyEditor} />
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -121,9 +129,11 @@ const SettingsContent = () => {
                   </Button>
                 }
               />
-              {isMobile ? <ApiKeyConfirm editor={apiKeyEditor} /> : null}
             </>
-          )}
+          ) : null}
+          <div hidden={section !== 'service'}>
+            <ChannelSettings onExpandedChange={setExpandedService} />
+          </div>
         </div>
       </Modal>
       {historyImport.file ? <ImportConfirm historyImport={historyImport} /> : null}
