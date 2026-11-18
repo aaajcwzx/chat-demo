@@ -20,9 +20,16 @@ chat_demo_require_custom_clean() {
   fi
 }
 
-chat_demo_run_node() {
+chat_demo_run_node() (
+  CHAT_DEMO_CONTAINER_NAME="chat-demo-${1}-$(id -u)-${BASHPID}-${RANDOM}"
+  chat_demo_cleanup_container() {
+    sudo -n docker stop --time 5 "$CHAT_DEMO_CONTAINER_NAME" >/dev/null 2>&1 || true
+  }
+  trap chat_demo_cleanup_container EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   install -d "$CHAT_DEMO_CACHE_DIR"
-  sudo -n docker run --rm --user "$(id -u):$(id -g)" --network host \
+  sudo -n docker run --rm --name "$CHAT_DEMO_CONTAINER_NAME" --user "$(id -u):$(id -g)" --network host \
     --memory 1536m --memory-swap 1536m --cpus 2 \
     --label "com.chat-demo.task=$1" --label "com.chat-demo.source=$CHAT_DEMO_SOURCE_DIR" \
     -e npm_config_cache=/cache/npm \
@@ -35,7 +42,7 @@ chat_demo_run_node() {
       fi
       /cache/tools/node_modules/.bin/pnpm install --frozen-lockfile --store-dir /cache/pnpm-store
       exec /cache/tools/node_modules/.bin/pnpm "$@"' sh "$@"
-}
+)
 
 chat_demo_dist_digest() {
   python3 - "$CHAT_DEMO_SOURCE_DIR/dist" <<'PY'
