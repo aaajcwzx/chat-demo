@@ -41,7 +41,7 @@ export const ChannelSettings = ({
   const [models, setModels] = useState<string[] | undefined>(
     () => useChannels.getState().modelLists[draft.id]
   )
-  const [showKey, setShowKey] = useState(false)
+  const [keyDraft, setKeyDraft] = useState({ editing: false, value: '', clear: false })
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ error: boolean; text: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -53,6 +53,9 @@ export const ChannelSettings = ({
   const locked = busy || uploading
   const official = draft.id === OFFICIAL_CHANNEL_ID
   const saved = channels.some((channel) => channel.id === draft.id)
+  const keyConfigured = Boolean(draft.apiKey.trim())
+  const editingKey = keyDraft.editing || !keyConfigured
+  const apiKey = keyDraft.value.trim() || (keyDraft.clear ? '' : draft.apiKey.trim())
   useEffect(() => () => controller.current?.abort(), [])
   useEffect(() => onExpandedChange(!official), [official, onExpandedChange])
 
@@ -67,15 +70,23 @@ export const ChannelSettings = ({
     resetTest()
     setDraft({ ...channel })
     setModels(useChannels.getState().modelLists[channel.id])
-    setShowKey(false)
+    setKeyDraft({ editing: false, value: '', clear: false })
   }
-  const update = (field: keyof Channel, value: string) => {
-    if (field === 'baseUrl' || field === 'apiKey') {
+  const update = (field: 'name' | 'baseUrl' | 'model', value: string) => {
+    if (field === 'baseUrl') {
       resetTest()
     } else {
       setFeedback(null)
     }
     setDraft((current) => ({ ...current, [field]: value }))
+  }
+  const changeKey = (value: string) => {
+    resetTest()
+    setKeyDraft((current) => ({ ...current, value, clear: current.clear && !value.trim() }))
+  }
+  const cancelKeyChange = () => {
+    resetTest()
+    setKeyDraft({ editing: false, value: '', clear: false })
   }
   const describe = (error: unknown): string => {
     const message = channelErrorMessage(error)
@@ -88,13 +99,10 @@ export const ChannelSettings = ({
     setLoading(true)
     setFeedback(null)
     try {
-      if (official && !draft.apiKey.trim()) {
+      if (official && !apiKey) {
         throw new ChannelConfigError('channelKeyRequired')
       }
-      const ids = await listChannelModels(
-        { ...draft, apiKey: draft.apiKey.trim() },
-        operation.signal
-      )
+      const ids = await listChannelModels({ ...draft, apiKey }, operation.signal)
       if (operation.signal.aborted) {
         return
       }
@@ -105,7 +113,7 @@ export const ChannelSettings = ({
       if (
         savedChannel &&
         savedChannel.baseUrl === (official ? draft.baseUrl : normalizeBaseUrl(draft.baseUrl)) &&
-        savedChannel.apiKey === draft.apiKey.trim()
+        savedChannel.apiKey === apiKey
       ) {
         cacheChannelModels(draft.id, ids)
       }
@@ -132,7 +140,7 @@ export const ChannelSettings = ({
       return
     }
     try {
-      const channel = saveChannel(draft, models)
+      const channel = saveChannel({ ...draft, apiKey }, models)
       controller.current?.abort()
       showToast({
         key: 'channelSaved',
@@ -201,30 +209,61 @@ export const ChannelSettings = ({
             </label>
           </>
         ) : null}
-        <label className={styles.field} htmlFor={`${fields}-key`}>
-          <span>API Key</span>
-          <div className={styles.inputRow}>
-            <input
-              id={`${fields}-key`}
-              aria-label="API Key"
-              type={showKey ? 'text' : 'password'}
-              value={draft.apiKey}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder={t('apiKeyPlaceholder')}
-              onChange={(event) => update('apiKey', event.target.value)}
-            />
+        <div className={styles.field}>
+          <label htmlFor={editingKey ? `${fields}-key` : undefined}>API Key</label>
+          {editingKey ? (
+            <div className={styles.inputRow}>
+              <input
+                id={`${fields}-key`}
+                aria-label="API Key"
+                type="password"
+                value={keyDraft.value}
+                autoComplete="new-password"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder={t(
+                  keyConfigured ? 'channelKeyReplacePlaceholder' : 'apiKeyPlaceholder'
+                )}
+                onChange={(event) => changeKey(event.target.value)}
+              />
+              {keyConfigured ? (
+                <Button variant="outlined" size="s" onClick={cancelKeyChange}>
+                  {t('cancel')}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <div className={styles.keySaved}>
+              <span className={styles.keyMask} aria-hidden="true">
+                ••••••••
+              </span>
+              <span className={styles.keyStatus}>{t('channelKeyConfigured')}</span>
+              <Button
+                variant="outlined"
+                size="s"
+                onClick={() => setKeyDraft((current) => ({ ...current, editing: true }))}
+              >
+                {t('changeApiKey')}
+              </Button>
+            </div>
+          )}
+          {editingKey && keyConfigured ? (
+            <small>{t(keyDraft.clear ? 'channelKeyClearPending' : 'channelKeyReplaceHint')}</small>
+          ) : null}
+          {editingKey && keyConfigured && !official && !keyDraft.clear ? (
             <button
               type="button"
-              className={styles.keyToggle}
-              aria-pressed={showKey}
-              onClick={() => setShowKey((current) => !current)}
+              className={styles.keyClear}
+              onClick={() => {
+                resetTest()
+                setKeyDraft({ editing: true, value: '', clear: true })
+              }}
             >
-              {t(showKey ? 'channelHideKey' : 'channelShowKey')}
+              {t('channelKeyClear')}
             </button>
-          </div>
-          {!official ? <small>{t('channelKeyHint')}</small> : null}
-        </label>
+          ) : null}
+          {!official && !keyConfigured ? <small>{t('channelKeyHint')}</small> : null}
+        </div>
         {!official ? (
           <div className={styles.field}>
             <label htmlFor={`${fields}-model`}>{t('channelModel')}</label>

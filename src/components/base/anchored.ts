@@ -144,8 +144,14 @@ export const useAnchoredPosition = <T extends HTMLElement, F extends HTMLElement
 
     const resolved = resolveSide(spaceAbove, spaceBelow, side, minSpace)
     const available = Math.max(0, resolved === 'top' ? spaceAbove : spaceBelow)
+    // Measure against the configured limit, not the previous content's smaller height.
+    // Otherwise a new footer can collapse a flex list and hide its required space.
+    const previousMaxHeight = floating.style.maxHeight
+    floating.style.maxHeight = `${maxHeight}px`
+    const contentHeight = floating.scrollHeight + 2
+    floating.style.maxHeight = previousMaxHeight
     // 内容比可用空间小时按内容收口，避免浮层留出多余空白
-    const height = Math.max(40, Math.min(maxHeight, available, floating.scrollHeight + 2))
+    const height = Math.max(40, Math.min(maxHeight, available, contentHeight))
     applyPosition({
       top:
         resolved === 'top'

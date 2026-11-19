@@ -77,15 +77,36 @@
 .inputRow > button {
   flex-shrink: 0;
 }
-.keyToggle {
+.keySaved {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+}
+.keySaved > button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.keyMask {
+  color: var(--dsw-alias-label-secondary);
+  letter-spacing: 2px;
+  user-select: none;
+}
+.keyStatus {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+.keyClear {
+  align-self: flex-start;
   border: none;
   background: transparent;
-  color: var(--dsw-alias-label-primary);
-  padding: 8px 4px;
+  color: var(--dsw-alias-label-secondary);
+  padding: 4px 0;
   font: inherit;
+  font-size: 12px;
   cursor: pointer;
 }
-.keyToggle:focus-visible {
+.keyClear:focus-visible {
   outline: 2px solid var(--dsw-alias-button-primary-fill);
   border-radius: 6px;
 }
