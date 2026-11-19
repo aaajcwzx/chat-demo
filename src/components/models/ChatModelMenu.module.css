@@ -1,0 +1,86 @@
+.channelRow {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 4px 4px 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  font-size: 13px;
+}
+.channelRow label {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+.channelRow select {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  background: var(--dsw-specific-menu);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.footer {
+  flex-shrink: 0;
+  padding: 8px 4px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.actions button {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.actions button:last-child {
+  margin-left: auto;
+}
+.actions button:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.channelRow select:focus-visible,
+.actions button:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-primary-fill);
+  outline-offset: 2px;
+}
+.actions button:disabled,
+.channelRow select:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.error,
+.hint {
+  margin: 0 4px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.error {
+  color: #d94848;
+}
+.hint {
+  color: var(--dsw-alias-label-secondary);
+}
+@media not all and (min-width: 768px) {
+  .channelRow select {
+    height: 44px;
+    font-size: 16px;
+  }
+  .actions button {
+    min-height: 44px;
+  }
+}

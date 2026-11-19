@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import {
   ChannelConfigError,
+  cacheChannelModels,
+  EMPTY_MODELS,
   getActiveChannel,
   getChannelSnapshot,
   newChannel,
+  normalizeBaseUrl,
   OFFICIAL_CHANNEL_ID,
   removeChannel,
   saveChannel,
@@ -11,7 +14,6 @@ import {
   type Channel,
 } from '../../services/channels.js'
 import { listChannelModels } from '../../services/api/models.js'
-import { ApiError } from '../../services/api/http.js'
 import { useChatStore } from '../../services/chat/store.js'
 import { useUploads } from '../../services/attachments.js'
 import { useTranslate } from '../../i18n/index.js'
@@ -19,6 +21,8 @@ import { Button } from '../base/Button.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
+import { ModelPicker } from '../models/ModelPicker.js'
+import { channelErrorMessage } from '../models/channelError.js'
 import { closeSettings, useSettingsDialog } from './settingsDialogState.js'
 import styles from './ChannelSettings.module.css'
 
@@ -34,7 +38,9 @@ export const ChannelSettings = ({
   const [draft, setDraft] = useState(() =>
     getChannelSnapshot(useSettingsDialog.getState().channelId)
   )
-  const [models, setModels] = useState<string[]>([])
+  const [models, setModels] = useState<string[] | undefined>(
+    () => useChannels.getState().modelLists[draft.id]
+  )
   const [showKey, setShowKey] = useState(false)
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ error: boolean; text: string } | null>(null)
@@ -55,11 +61,12 @@ export const ChannelSettings = ({
     controller.current = null
     setLoading(false)
     setFeedback(null)
-    setModels([])
+    setModels(undefined)
   }
   const select = (channel: Channel) => {
     resetTest()
     setDraft({ ...channel })
+    setModels(useChannels.getState().modelLists[channel.id])
     setShowKey(false)
   }
   const update = (field: keyof Channel, value: string) => {
@@ -71,26 +78,8 @@ export const ChannelSettings = ({
     setDraft((current) => ({ ...current, [field]: value }))
   }
   const describe = (error: unknown): string => {
-    if (error instanceof ChannelConfigError) {
-      return t(error.code)
-    }
-    if (error instanceof ApiError) {
-      if (error.kind === 'network') {
-        return t('channelNetworkError')
-      }
-      if (error.status === 401 || error.status === 403) {
-        return t('channelAuthError')
-      }
-      if (error.status === 404 || error.status === 405) {
-        return t('channelModelsUnavailable')
-      }
-      if (error.localMessage) {
-        return t(error.localMessage.key, error.localMessage.params)
-      }
-    }
-    return t('channelTestFailed', {
-      message: error instanceof Error ? error.message.slice(0, 300) : String(error),
-    })
+    const message = channelErrorMessage(error)
+    return t(message.key, message.params)
   }
   const test = async () => {
     controller.current?.abort()
@@ -110,6 +99,16 @@ export const ChannelSettings = ({
         return
       }
       setModels(ids)
+      const savedChannel = useChannels
+        .getState()
+        .channels.find((channel) => channel.id === draft.id)
+      if (
+        savedChannel &&
+        savedChannel.baseUrl === (official ? draft.baseUrl : normalizeBaseUrl(draft.baseUrl)) &&
+        savedChannel.apiKey === draft.apiKey.trim()
+      ) {
+        cacheChannelModels(draft.id, ids)
+      }
       if (!official && ids.length) {
         setDraft((current) => ({ ...current, model: current.model || ids[0] }))
       }
@@ -133,7 +132,7 @@ export const ChannelSettings = ({
       return
     }
     try {
-      const channel = saveChannel(draft)
+      const channel = saveChannel(draft, models)
       controller.current?.abort()
       showToast({
         key: 'channelSaved',
@@ -227,29 +226,24 @@ export const ChannelSettings = ({
           {!official ? <small>{t('channelKeyHint')}</small> : null}
         </label>
         {!official ? (
-          <label className={styles.field} htmlFor={`${fields}-model`}>
-            <span>{t('channelModel')}</span>
+          <div className={styles.field}>
+            <label htmlFor={`${fields}-model`}>{t('channelModel')}</label>
             <div className={styles.inputRow}>
-              <input
-                id={`${fields}-model`}
-                aria-label={t('channelModel')}
-                list={`${fields}-models`}
+              <ModelPicker
+                inputId={`${fields}-model`}
                 value={draft.model}
+                models={models ?? EMPTY_MODELS}
+                resetKey={draft.id}
                 placeholder={t('channelModelPlaceholder')}
-                spellCheck={false}
-                onChange={(event) => update('model', event.target.value)}
+                loading={loading}
+                onChange={(model) => update('model', model)}
               />
               <Button variant="outlined" size="s" disabled={loading} onClick={() => void test()}>
                 {t('channelFetchModels')}
               </Button>
             </div>
-            <datalist id={`${fields}-models`}>
-              {models.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
             <small>{t('channelModelHint')}</small>
-          </label>
+          </div>
         ) : (
           <div className={styles.protocol}>
             <span>{t('channelModel')}</span>

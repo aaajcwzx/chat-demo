@@ -1,0 +1,211 @@
+.anchor {
+  flex: 1;
+  min-width: 0;
+}
+.inputGroup {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.anchor .inputGroup input {
+  flex: 1;
+  padding-right: 40px;
+}
+.arrowButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -39px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+.arrowButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.arrowButton:focus-visible,
+.headerTrigger:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-primary-fill);
+  outline-offset: 2px;
+}
+.headerAnchor {
+  flex: 0 1 auto;
+  max-width: min(480px, 100%);
+}
+.headerTrigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.headerTrigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.headerTrigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.headerTrigger > svg {
+  flex-shrink: 0;
+}
+.headerText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: start;
+}
+.headerText strong {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.headerText small {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu {
+  position: fixed;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 420px;
+  max-width: calc(100vw - 16px);
+  max-height: 480px;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  background: var(--dsw-specific-menu);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+}
+.searchArea {
+  flex-shrink: 0;
+  padding: 4px 4px 8px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.heading small {
+  color: var(--dsw-alias-label-secondary);
+}
+.searchArea input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.searchArea input:focus {
+  border-color: var(--dsw-alias-button-primary-fill);
+}
+.list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: start;
+  cursor: pointer;
+}
+.option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.option > svg {
+  flex-shrink: 0;
+  color: var(--dsw-alias-button-primary-fill);
+}
+.option:hover,
+.highlighted {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.option:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.empty {
+  margin: 0;
+  padding: 12px 10px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+.manual {
+  flex-shrink: 0;
+  border: 0;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  margin-top: 6px;
+  padding: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  font: inherit;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+@media not all and (min-width: 768px) {
+  .headerText strong {
+    font-size: 16px;
+    line-height: 22px;
+  }
+  .headerAnchor {
+    max-width: calc(100vw - 108px);
+  }
+  .searchArea input {
+    font-size: 16px;
+  }
+  .option {
+    min-height: 44px;
+  }
+}

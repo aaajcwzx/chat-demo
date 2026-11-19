@@ -69,12 +69,22 @@ const officialChannel = (apiKey = ''): Channel => ({
   model: 'deepseek-flash',
 })
 
-type ChannelState = { channels: Channel[]; activeId: string }
+type ChannelState = {
+  channels: Channel[]
+  activeId: string
+  modelLists: Record<string, string[]>
+}
+export const EMPTY_MODELS: readonly string[] = []
+const normalizeModelList = (models: string[]) =>
+  [...new Set(models.map((model) => model.trim()).filter(Boolean))].sort()
+const withoutModelList = (lists: ChannelState['modelLists'], id: string) =>
+  Object.fromEntries(Object.entries(lists).filter(([channelId]) => channelId !== id))
 
 const load = (): ChannelState => {
   const fallback = {
     channels: [officialChannel(read(LEGACY_KEY)?.trim() ?? '')],
     activeId: OFFICIAL_CHANNEL_ID,
+    modelLists: {},
   }
   const raw = read(CHANNELS_STORAGE_KEY)
   if (!raw) {
@@ -138,7 +148,18 @@ const load = (): ChannelState => {
       channels.some((channel) => channel.id === parsed.activeId)
         ? parsed.activeId
         : OFFICIAL_CHANNEL_ID
-    return { channels, activeId }
+    const modelLists: Record<string, string[]> = {}
+    if ('modelLists' in parsed && parsed.modelLists && typeof parsed.modelLists === 'object') {
+      for (const channel of channels) {
+        const list = (parsed.modelLists as Record<string, unknown>)[channel.id]
+        if (Array.isArray(list)) {
+          modelLists[channel.id] = normalizeModelList(
+            list.filter((id): id is string => typeof id === 'string')
+          )
+        }
+      }
+    }
+    return { channels, activeId, modelLists }
   } catch {
     return fallback
   }
@@ -209,14 +230,28 @@ export const validateChannel = (draft: Channel): Channel => {
   }
 }
 
-export const saveChannel = (draft: Channel): Channel => {
+export const saveChannel = (draft: Channel, models?: string[]): Channel => {
   const channel = validateChannel(draft)
-  useChannels.setState((state) => ({
-    channels: state.channels.some((item) => item.id === channel.id)
-      ? state.channels.map((item) => (item.id === channel.id ? channel : item))
-      : [...state.channels, channel],
-    activeId: channel.id,
-  }))
+  useChannels.setState((state) => {
+    const previous = state.channels.find((item) => item.id === channel.id)
+    let modelLists = { ...state.modelLists }
+    if (models !== undefined) {
+      modelLists[channel.id] = normalizeModelList(models)
+    } else if (
+      !previous ||
+      previous.baseUrl !== channel.baseUrl ||
+      previous.apiKey !== channel.apiKey
+    ) {
+      modelLists = withoutModelList(modelLists, channel.id)
+    }
+    return {
+      channels: previous
+        ? state.channels.map((item) => (item.id === channel.id ? channel : item))
+        : [...state.channels, channel],
+      activeId: channel.id,
+      modelLists,
+    }
+  })
   persist()
   return channel
 }
@@ -231,17 +266,51 @@ export const removeChannel = (id: string) => {
   if (id === OFFICIAL_CHANNEL_ID) {
     return
   }
-  useChannels.setState((state) => ({
-    channels: state.channels.filter((channel) => channel.id !== id),
-    activeId: state.activeId === id ? OFFICIAL_CHANNEL_ID : state.activeId,
-  }))
+  useChannels.setState((state) => {
+    const modelLists = withoutModelList(state.modelLists, id)
+    return {
+      channels: state.channels.filter((channel) => channel.id !== id),
+      activeId: state.activeId === id ? OFFICIAL_CHANNEL_ID : state.activeId,
+      modelLists,
+    }
+  })
   persist()
 }
 export const setActiveApiKey = (apiKey: string | null) => {
   const active = getActiveChannel()
+  const key = apiKey?.trim() ?? ''
+  useChannels.setState((state) => {
+    const modelLists =
+      active.apiKey !== key ? withoutModelList(state.modelLists, active.id) : state.modelLists
+    return {
+      channels: state.channels.map((channel) =>
+        channel.id === active.id ? { ...channel, apiKey: key } : channel
+      ),
+      modelLists,
+    }
+  })
+  persist()
+}
+
+export const cacheChannelModels = (id: string, models: string[]) => {
+  if (!useChannels.getState().channels.some((channel) => channel.id === id)) {
+    return
+  }
+  useChannels.setState((state) => ({
+    modelLists: { ...state.modelLists, [id]: normalizeModelList(models) },
+  }))
+  persist()
+}
+
+export const setChannelModel = (id: string, model: string) => {
+  if (!model.trim()) {
+    return
+  }
   useChannels.setState((state) => ({
     channels: state.channels.map((channel) =>
-      channel.id === active.id ? { ...channel, apiKey: apiKey?.trim() ?? '' } : channel
+      channel.id === id && channel.protocol === 'openai'
+        ? { ...channel, model: model.trim() }
+        : channel
     ),
   }))
   persist()
