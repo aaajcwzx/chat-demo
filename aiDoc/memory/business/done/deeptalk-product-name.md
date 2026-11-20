@@ -6,4 +6,5 @@
 - 用户原始意图：在 DeepChat 与 DeepTalk 两个候选名称中选择，用户最终确认“行，就叫这个名字”，采用 **DeepTalk**。
 - 使用范围：用户自有的多渠道 AI 对话产品，后续产品文案和二开文档统一使用 **DeepTalk**。
 - 已完成：前台开发说明、前后端对接说明、后端部署说明和项目记忆已记录正式名称。
+- 前台显示名称已统一为 **DeepTalk** 并发布，详见 [DeepTalk 前台标题](deeptalk-ui-title.md)。
 - 来源说明：聊天前台基于 DeepSeek 官方 `chat-demo`，后端和 Vue 管理端基于 Gin-Vue-Admin；产品名与上游框架署名分别维护。

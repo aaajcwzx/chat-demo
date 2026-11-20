@@ -10,6 +10,7 @@
 ### 2026-11-20
 
 - 用户确认产品名称为 **DeepTalk**；后续产品文案与二开文档统一使用该名称。
+- 前台中英文侧边栏和浏览器标签页标题已统一为 **DeepTalk**，并完成生产发布与验收。
 - 聊天前台基于 DeepSeek `chat-demo`，后端及管理端基于 Gin-Vue-Admin；沿用现有源码目录、分支及部署配置。
 - 命名决定见 [DeepTalk 产品命名](business/done/deeptalk-product-name.md)。
 
