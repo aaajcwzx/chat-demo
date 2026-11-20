@@ -1,6 +1,61 @@
 import type { zh } from './zh.js'
 
 export const en = {
+  accountMenu: 'Account and sync',
+  accountLogin: 'Log in',
+  accountRegister: 'Create account',
+  accountRegisterInvite: 'Register with an invitation',
+  accountBackLogin: 'Already registered? Log in',
+  accountLocalBadge: 'Local',
+  accountCloudBadge: 'Cloud',
+  accountLocalHint:
+    'Chats are stored in this browser. Log in to use server storage and access your chats on other devices.',
+  accountCloudHint:
+    'Chats and attachments are saved to your account and available on your other devices.',
+  accountHttpsHint:
+    'Cloud accounts use the secure HTTPS page. You can manually migrate the original browser data after login.',
+  accountSecureLogin: 'Open secure login',
+  accountLoginHint:
+    'Log in to use cloud chats. Your original local records are retained and can be imported from the account menu.',
+  accountUsername: 'Username',
+  accountNickname: 'Nickname (optional)',
+  accountPasswordLabel: 'Password',
+  accountPassword: 'Change password',
+  accountOldPassword: 'Current password',
+  accountNewPassword: 'New password',
+  accountConfirmPassword: 'Confirm password',
+  accountPasswordHint:
+    'Use at least 8 characters. Other devices must log in again after the password changes.',
+  accountPasswordMismatch: 'The passwords do not match',
+  accountInvite: 'Invitation code',
+  accountRefresh: 'Refresh cloud chats',
+  accountBackup: 'Export chat backup',
+  accountImportLocal: 'Import this page’s local chats',
+  accountImportHttp: 'Import chats from the original HTTP page',
+  accountAdmin: 'Admin console',
+  accountLogout: 'Log out',
+  accountBusy:
+    'Wait for generation, uploads and saves to finish. Export a backup if a save has failed.',
+  accountWorking: 'Working…',
+  accountLoadFailed: 'Cloud settings could not be loaded. Check your connection and log in again.',
+  accountMigrationTitle: 'Migrate browser data',
+  accountMigrationHint:
+    'Add chats that do not exist in your account. Keep the original browser data and existing cloud chats with the same ID.',
+  accountTransferHint:
+    'Send this browser’s chats, files and channel settings to the secure login page you just opened, then confirm saving them to your account there. The originals are retained.',
+  accountMigrationWaiting:
+    'Return to the original HTTP page and confirm sending its browser data to this secure page.',
+  accountMigrationCount: 'Found {count} chats and {files} attachments',
+  accountMigrationChannels:
+    'Import channel settings and encrypt API keys on the server; retain an already configured official key',
+  accountTransferConfirm: 'Allow transfer to secure page',
+  accountMigrationConfirm: 'Import into this account',
+  accountCloudSaveFailed:
+    'Cloud changes have not been saved. If another device edited this chat, export a backup before reloading the latest server version.',
+  historyCloudImportDescription:
+    'Importing a ZIP replaces all cloud chats and attachments for this account, including on other devices.',
+  historyCloudDeleteDescription:
+    'Delete all cloud chats and attachments for this account, including on other devices. Export a backup first.',
   channelStreamInterrupted:
     'The response connection was interrupted. You can regenerate the answer.',
   channelSettingsTitle: 'Model services',

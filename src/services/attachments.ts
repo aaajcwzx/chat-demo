@@ -4,6 +4,8 @@ import { uploadFile } from './api/client.js'
 import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
 import type { FilePurpose } from './api/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
+import { getChannelSnapshot, type Channel } from './channels.js'
+import { storageOwner } from './backend/state.js'
 
 /** 允许上传的扩展名，按扩展名白名单过滤，清单见 uploadExts.ts */
 export const ACCEPTED_EXTS = ACCEPT_FILE_EXTS
@@ -38,9 +40,11 @@ export const getUploadPurpose = (name: string, isImage: boolean): FilePurpose | 
 
 /** 文件允许的最大体积（MB），按上传时的 purpose 区分 */
 const getMaxSizeMB = (file: File) =>
-  getUploadPurpose(file.name, isImage(resolveMimeType(file))) === 'user_data'
-    ? MAX_USER_DATA_SIZE_MB
-    : MAX_SIZE_MB
+  storageOwner() !== null
+    ? 20
+    : getUploadPurpose(file.name, isImage(resolveMimeType(file))) === 'user_data'
+      ? MAX_USER_DATA_SIZE_MB
+      : MAX_SIZE_MB
 
 /** 添加前校验：格式 → 大小 → 数量，任一不满足即整批不添加 */
 export const validateFiles = (files: File[], currentCount: number): TranslationMessage | null => {
@@ -122,7 +126,8 @@ const enqueueUpload = (
   file: Blob,
   name: string,
   isImage: boolean,
-  signal: AbortSignal
+  signal: AbortSignal,
+  channel: Channel
 ) =>
   new Promise<string>((resolve, reject) => {
     queue.push(async () => {
@@ -132,7 +137,9 @@ const enqueueUpload = (
       }
       try {
         const body = file instanceof File ? file : new File([file], name, { type: file.type })
-        resolve((await uploadFile(apiKey, body, getUploadPurpose(name, isImage), signal)).id)
+        resolve(
+          (await uploadFile(apiKey, body, getUploadPurpose(name, isImage), signal, channel)).id
+        )
       } catch (error) {
         reject(error)
       }
@@ -169,7 +176,8 @@ export const uploadAttachment = (
   id: string,
   blob: Blob,
   name: string,
-  isImage: boolean
+  isImage: boolean,
+  channel: Channel = getChannelSnapshot()
 ): Promise<string> => {
   const current = pending.get(id)
   if (current) {
@@ -177,7 +185,7 @@ export const uploadAttachment = (
   }
   const controller = new AbortController()
   setTask(id, { status: 'uploading' })
-  const promise = enqueueUpload(apiKey, blob, name, isImage, controller.signal)
+  const promise = enqueueUpload(apiKey, blob, name, isImage, controller.signal, channel)
     .then((serverId) => {
       setTask(id, { status: 'done', serverId })
       return serverId

@@ -36,6 +36,7 @@ import { ChannelSettings } from './ChannelSettings.js'
 import { getChannelSnapshot } from '../../services/channels.js'
 import { closeSettings, useSettingsDialog, type SettingsSection } from './settingsDialogState.js'
 import styles from './Settings.module.css'
+import { useAccount } from '../../services/backend/state.js'
 
 /**
  * 设置弹窗：分「通用设置」（主题、语言、朗读音色、位置）与「数据管理」（API Key、导入、导出、删除）。
@@ -58,6 +59,7 @@ const sections: { value: SettingsSection; label: TranslationKey; icon: ReactNode
 
 const SettingsContent = () => {
   const t = useTranslate()
+  const cloud = useAccount(state => state.user !== null)
   // 打开时按调用方指定的分组选中，之后在弹窗内切换
   const [section, setSection] = useState(() => useSettingsDialog.getState().section)
   const [expandedService, setExpandedService] = useState(
@@ -112,6 +114,7 @@ const SettingsContent = () => {
             </>
           ) : section === 'data' ? (
             <>
+              <p className={styles.description}>{t(cloud ? 'accountCloudHint' : 'accountLocalHint')}</p>
               <ImportHistory historyImport={historyImport} disabled={historyBusy} />
               <ExportHistory disabled={historyBusy} />
               <SettingCell
@@ -149,6 +152,7 @@ const DeleteAllConfirm = ({
   historyDelete: ReturnType<typeof useHistoryDelete>
 }) => {
   const t = useTranslate()
+  const cloud = useAccount(state => state.user !== null)
   return (
     <Modal
       title={t('deleteAllSessionsModalTitle')}
@@ -174,7 +178,7 @@ const DeleteAllConfirm = ({
         </div>
       }
     >
-      {t('deleteAllSessionsModalDescription')}
+      {t(cloud ? 'historyCloudDeleteDescription' : 'deleteAllSessionsModalDescription')}
     </Modal>
   )
 }
@@ -484,12 +488,13 @@ const ImportHistory = ({
   disabled: boolean
 }) => {
   const t = useTranslate()
+  const cloud = useAccount(state => state.user !== null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   return (
     <SettingCell
       label={t('historyImport')}
-      description={t('historyImportDescription')}
+      description={t(cloud ? 'historyCloudImportDescription' : 'historyImportDescription')}
       status={historyImport.status}
       action={
         <>

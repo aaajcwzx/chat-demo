@@ -55,16 +55,20 @@ export async function* streamOpenAI(
   body: CreateMessageRequest,
   signal: AbortSignal
 ): AsyncGenerator<MessageStreamEvent> {
-  const response = await request(`${channel.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(channel.apiKey ? { Authorization: `Bearer ${channel.apiKey}` } : {}),
+  const response = await request(
+    `${channel.baseUrl}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        ...(channel.apiKey ? { Authorization: `Bearer ${channel.apiKey}` } : {}),
+      },
+      body: JSON.stringify({ model: body.model, messages: toMessages(body), stream: true }),
+      signal,
     },
-    body: JSON.stringify({ model: body.model, messages: toMessages(body), stream: true }),
-    signal,
-  })
+    channel
+  )
   if (!response.body || !response.headers.get('Content-Type')?.includes('text/event-stream')) {
     const error = await readErrorResponse(response, 'protocol')
     throw new ApiError(error.kind, redactApiKey(error.message, channel.apiKey), error.status)

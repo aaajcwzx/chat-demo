@@ -32,6 +32,17 @@ export const ChatModelMenu = () => {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<TranslationMessage | null>(null)
+  const [mutating, setMutating] = useState(false)
+  const change = async (run: () => Promise<unknown>) => {
+    setMutating(true)
+    try {
+      await run()
+    } catch (error) {
+      setFeedback(channelErrorMessage(error))
+    } finally {
+      setMutating(false)
+    }
+  }
   const controller = useRef<AbortController | null>(null)
 
   const refreshModels = useCallback(async () => {
@@ -43,7 +54,7 @@ export const ChatModelMenu = () => {
     try {
       const models = await listChannelModels(channel, operation.signal)
       if (!operation.signal.aborted) {
-        cacheChannelModels(channel.id, models)
+        await cacheChannelModels(channel.id, models)
       }
     } catch (error) {
       if (!operation.signal.aborted) {
@@ -74,10 +85,10 @@ export const ChatModelMenu = () => {
       resetKey={channel.id}
       editable={false}
       open={open}
-      selectionDisabled={locked}
+      selectionDisabled={locked || mutating}
       loading={loading}
       onOpenChange={setOpen}
-      onChange={(model) => setChannelModel(channel.id, model)}
+      onChange={(model) => void change(() => setChannelModel(channel.id, model))}
       menuHeader={
         <div className={styles.channelRow}>
           <label htmlFor="chat-model-channel">{t('channelSelect')}</label>
@@ -85,8 +96,8 @@ export const ChatModelMenu = () => {
             id="chat-model-channel"
             aria-label={t('channelSelect')}
             value={channel.id}
-            disabled={locked}
-            onChange={(event) => activateChannel(event.target.value)}
+            disabled={locked || mutating}
+            onChange={(event) => void change(() => activateChannel(event.target.value))}
           >
             {channels.map((item) => (
               <option key={item.id} value={item.id}>

@@ -1,10 +1,10 @@
 # 本机部署
 
-本项目生成静态页面，使用本机已有的 1Panel 静态网站和 OpenResty 托管。构建在临时 Node.js 24 容器中执行，pnpm 固定为项目 CI 使用的 12.6.0；线上只提供静态文件。
+本项目生成静态页面，使用本机已有的 1Panel 静态网站和 OpenResty 托管。构建在受限的临时 Node.js 24 容器中执行，pnpm 固定为 12.6.0。Go 后端独立运行，OpenResty 将 `/api/` 转发到本机后端。
 
 | 项目 | 位置 |
 | --- | --- |
-| 访问地址 | http://101.34.83.198/ |
+| 访问地址 | https://101.34.83.198/ |
 | 1Panel 网站别名 | `chat-demo` |
 | 源代码 | `/home/ubuntu/chat-demo` |
 | 网站目录 | `/opt/1panel/www/sites/chat-demo/index` |
@@ -34,6 +34,6 @@ Docker 和 1Panel 服务已启用开机启动；OpenResty 的 `unless-stopped` �
 
 ## 使用
 
-首次使用，在页面设置中填写 DeepSeek API Key。API Key 和聊天记录由各自的浏览器保存，浏览器直接请求 `https://api.deepseek.com`。
+未登录可继续在设置中配置本地渠道，记录保存在浏览器。登录账号后使用云端会话、附件和加密渠道密钥，管理后台位于 `/admin/`，详见 [Go 后端说明](BACKEND.zh-CN.md)。
 
-当前使用服务器 IP 和 HTTP。需要语音录音等要求安全上下文的浏览器功能时，在 1Panel 的此网站中添加已解析到服务器的域名，并申请、启用 HTTPS 证书。
+IP 的 HTTPS 证书已启用并自动续期。原 HTTP 页面保留供迁移旧 IndexedDB 数据；完成迁移前不强制跳转或开启 HSTS。

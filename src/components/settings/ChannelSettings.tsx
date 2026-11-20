@@ -45,15 +45,17 @@ export const ChannelSettings = ({
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState<{ error: boolean; text: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const controller = useRef<AbortController | null>(null)
   const busy = useChatStore((state) => Object.keys(state.streaming).length > 0)
   const uploading = useUploads((state) =>
     Object.values(state.tasks).some((task) => task.status === 'uploading')
   )
-  const locked = busy || uploading
+  const importing = useChatStore((state) => state.importingHistory)
+  const locked = busy || uploading || importing || saving
   const official = draft.id === OFFICIAL_CHANNEL_ID
   const saved = channels.some((channel) => channel.id === draft.id)
-  const keyConfigured = Boolean(draft.apiKey.trim())
+  const keyConfigured = Boolean(draft.managed ? draft.hasKey : draft.apiKey.trim())
   const editingKey = keyDraft.editing || !keyConfigured
   const apiKey = keyDraft.value.trim() || (keyDraft.clear ? '' : draft.apiKey.trim())
   useEffect(() => () => controller.current?.abort(), [])
@@ -99,10 +101,13 @@ export const ChannelSettings = ({
     setLoading(true)
     setFeedback(null)
     try {
-      if (official && !apiKey) {
+      if (official && !apiKey && !keyConfigured) {
         throw new ChannelConfigError('channelKeyRequired')
       }
-      const ids = await listChannelModels({ ...draft, apiKey }, operation.signal)
+      const ids = await listChannelModels(
+        { ...draft, apiKey, clearKey: keyDraft.clear },
+        operation.signal
+      )
       if (operation.signal.aborted) {
         return
       }
@@ -115,7 +120,7 @@ export const ChannelSettings = ({
         savedChannel.baseUrl === (official ? draft.baseUrl : normalizeBaseUrl(draft.baseUrl)) &&
         savedChannel.apiKey === apiKey
       ) {
-        cacheChannelModels(draft.id, ids)
+        await cacheChannelModels(draft.id, ids)
       }
       if (!official && ids.length) {
         setDraft((current) => ({ ...current, model: current.model || ids[0] }))
@@ -134,13 +139,14 @@ export const ChannelSettings = ({
       }
     }
   }
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (locked) {
       return
     }
+    setSaving(true)
     try {
-      const channel = saveChannel({ ...draft, apiKey }, models)
+      const channel = await saveChannel({ ...draft, apiKey, clearKey: keyDraft.clear }, models)
       controller.current?.abort()
       showToast({
         key: 'channelSaved',
@@ -149,6 +155,8 @@ export const ChannelSettings = ({
       closeSettings()
     } catch (error) {
       setFeedback({ error: true, text: describe(error) })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -338,10 +346,18 @@ export const ChannelSettings = ({
                 variant="danger"
                 size="m"
                 disabled={locked}
-                onClick={() => {
-                  removeChannel(draft.id)
-                  select(getActiveChannel())
-                  setDeleting(false)
+                onClick={async () => {
+                  setSaving(true)
+                  try {
+                    await removeChannel(draft.id)
+                    select(getActiveChannel())
+                    setDeleting(false)
+                  } catch (error) {
+                    setFeedback({ error: true, text: describe(error) })
+                    setDeleting(false)
+                  } finally {
+                    setSaving(false)
+                  }
                 }}
               >
                 {t('delete')}

@@ -121,7 +121,7 @@ export const setTtsVoice = (ttsVoice: TtsVoice) => {
 }
 
 export const setApiKey = (apiKey: string | null) => {
-  setActiveApiKey(apiKey)
+  return setActiveApiKey(apiKey)
 }
 
 // Retain the legacy settings API for the official template's existing callers.

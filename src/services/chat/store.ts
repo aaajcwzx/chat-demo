@@ -6,6 +6,8 @@ import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/er
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
 import { useSettings } from '../settings.js'
 import { getChannelSnapshot, type Channel } from '../channels.js'
+import { storageOwner, useAccount } from '../backend/state.js'
+import { cloudWaitForWrites, currentRevision, remoteRevision } from '../backend/storage.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -62,6 +64,7 @@ const titleRequests = new Set<AbortController>()
 
 type ChatState = {
   ready: boolean
+  sourceOwner: number | null
   initError: boolean
   /** 历史导入或全部删除期间锁定交互，提交成功前仍展示原有记录。 */
   importingHistory: boolean
@@ -78,6 +81,7 @@ type ChatState = {
 
 export const useChatStore = create<ChatState>(() => ({
   ready: false,
+  sourceOwner: null,
   initError: false,
   importingHistory: false,
   sessions: [],
@@ -110,11 +114,17 @@ const sessionAccess = new Map<string, number>()
 const unsavedSessions = new Set<string>()
 /** 保存失败时保留原件，重试成功后才释放。 */
 const pendingFiles = new Map<string, db.StoredFile[]>()
+/** Failed cloud writes stay in memory for the same account after session expiry. */
+const accountRecovery = new Map<
+  number,
+  { sessions: Session[]; files: Map<string, db.StoredFile[]> }
+>()
 const deletingSessions = new Set<string>()
 const deletionTasks = new Set<Promise<boolean>>()
 const streamFlushes = new Map<string, () => void>()
 let accessSequence = 0
 let historyEpoch = 0
+let historyStorageOwner: number | null = null
 let initTask: Promise<void> | undefined
 const sessionLoads = new Map<string, { promise: Promise<void> }>()
 
@@ -190,7 +200,7 @@ const persist = (sessionId: string) => {
     const epoch = historyEpoch
     const files = pendingFiles.get(sessionId)
     void db
-      .saveSession(session, files)
+      .saveSession(session, files, historyStorageOwner)
       .then(() => {
         if (epoch !== historyEpoch || !getSession(sessionId)) {
           return
@@ -305,9 +315,32 @@ export const initChat = (): Promise<void> => {
   set({ initError: false })
   initTask = (async () => {
     try {
-      const summaries = await db.loadSessionSummaries()
+      const summaries = await db.loadSessionSummaries(historyStorageOwner)
       if (epoch === historyEpoch) {
-        set({ ready: true, sessions: sortSessions(summaries) })
+        const recovered =
+          historyStorageOwner === null ? undefined : accountRecovery.get(historyStorageOwner)
+        const merged = new Map(summaries.map((summary) => [summary.id, summary]))
+        const cache: Record<string, Session> = {}
+        const saveErrors: Record<string, boolean> = {}
+        for (const session of recovered?.sessions ?? []) {
+          merged.set(session.id, toSessionSummary(session))
+          cache[session.id] = session
+          unsavedSessions.add(session.id)
+          saveErrors[session.id] = true
+          const files = recovered?.files.get(session.id)
+          if (files) {
+            pendingFiles.set(session.id, files)
+          }
+        }
+        if (historyStorageOwner !== null) {
+          accountRecovery.delete(historyStorageOwner)
+        }
+        set({
+          ready: true,
+          sessions: sortSessions([...merged.values()]),
+          sessionCache: cache,
+          sessionSaveErrors: saveErrors,
+        })
       }
     } catch (error) {
       if (epoch === historyEpoch) {
@@ -338,7 +371,7 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
   sessionLoads.set(id, load)
   load.promise = (async () => {
     try {
-      const stored = await db.loadSession(id)
+      const stored = await db.loadSession(id, historyStorageOwner)
       if (epoch !== historyEpoch || sessionLoads.get(id) !== load) {
         return
       }
@@ -354,7 +387,7 @@ const ensureSessionLoaded = (id: string): Promise<void> => {
       const session = sameSummary(settled, summary) ? settled : { ...settled, ...summary }
       touchSession(id)
       set((state) => ({ sessionCache: { ...state.sessionCache, [id]: session } }))
-      if (session !== stored) {
+      if (session !== stored && historyStorageOwner === null) {
         persist(id)
       }
       trimSessionCache()
@@ -391,6 +424,115 @@ const waitForIdle = (sessionId?: string) =>
     })
   })
 
+/** Account changes synchronously hide the previous view and invalidate all old async work. */
+export const switchHistorySource = (owner = storageOwner()) => {
+  if (owner === historyStorageOwner && get().ready) {
+    return
+  }
+  if (historyStorageOwner !== null && unsavedSessions.size > 0) {
+    accountRecovery.set(historyStorageOwner, {
+      sessions: [...unsavedSessions].flatMap((id) => {
+        const session = getSession(id)
+        return session ? [settleInterrupted(session)] : []
+      }),
+      files: new Map(pendingFiles),
+    })
+  }
+  historyEpoch += 1
+  historyStorageOwner = owner
+  for (const controller of Object.values(get().streaming)) {
+    controller.abort()
+  }
+  sessionLoads.clear()
+  sessionAccess.clear()
+  unsavedSessions.clear()
+  pendingFiles.clear()
+  deletingSessions.clear()
+  streamFlushes.clear()
+  titleRequests.clear()
+  clearAllDrafts()
+  for (const id of Object.keys(useUploads.getState().tasks)) {
+    cancelUpload(id)
+  }
+  initTask = undefined
+  set({
+    sourceOwner: owner,
+    ready: false,
+    initError: false,
+    importingHistory: false,
+    sessions: [],
+    sessionCache: {},
+    sessionLoadErrors: {},
+    sessionSaveErrors: {},
+    activeId: null,
+    streaming: {},
+  })
+  void initChat()
+}
+
+export const hasPendingHistoryWrites = () =>
+  unsavedSessions.size > 0 || get().importingHistory || deletionTasks.size > 0
+let refreshTask: Promise<void> | undefined
+export const refreshCloudHistory = (): Promise<void> => {
+  if (refreshTask) {
+    return refreshTask
+  }
+  const owner = historyStorageOwner
+  if (
+    owner === null ||
+    get().importingHistory ||
+    Object.keys(get().streaming).length ||
+    unsavedSessions.size
+  ) {
+    return Promise.resolve()
+  }
+  const epoch = historyEpoch
+  const task = (async () => {
+    const summaries = await db.loadSessionSummaries(owner)
+    if (epoch !== historyEpoch || unsavedSessions.size || Object.keys(get().streaming).length) {
+      return
+    }
+    const valid = new Set(summaries.map((row) => row.id))
+    const cache = Object.fromEntries(
+      Object.entries(get().sessionCache).filter(
+        ([id]) => valid.has(id) && currentRevision(owner, id) === remoteRevision(owner, id)
+      )
+    )
+    const activeId = get().activeId
+    set({
+      sessions: sortSessions(summaries),
+      sessionCache: cache,
+      activeId: activeId && valid.has(activeId) ? activeId : null,
+    })
+    const selected = get().activeId
+    if (selected !== null) {
+      await ensureSessionLoaded(selected)
+    }
+  })().finally(() => {
+    if (refreshTask === task) {
+      refreshTask = undefined
+    }
+  })
+  refreshTask = task
+  return task
+}
+
+export const bindCloudRefresh = () => {
+  const refresh = () => {
+    if (document.visibilityState === 'visible') {
+      void refreshCloudHistory().catch(db.reportStorageError('refresh cloud history'))
+    }
+  }
+  const timer = window.setInterval(refresh, 15000)
+  window.addEventListener('focus', refresh)
+  document.addEventListener('visibilitychange', refresh)
+  return () => {
+    window.clearInterval(timer)
+    window.removeEventListener('focus', refresh)
+    document.removeEventListener('visibilitychange', refresh)
+  }
+}
+
 /**
  * 替换历史对话：先写入暂存，成功后原子替换旧记录；写入为空即删除全部会话与附件。
  * 期间停止生成并禁止修改会话；失败时清除暂存，保留原有记录。
@@ -400,20 +542,32 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
     throw new Error('History replacement is already in progress')
   }
   set({ importingHistory: true })
+  const owner = historyStorageOwner
+  let operationEpoch = historyEpoch
   try {
     for (const controller of Object.values(get().streaming)) {
       controller.abort()
     }
     // 已开始的单条删除先同步到内存，避免本次替换失败后列表残留已被删除的记录。
     await Promise.all(deletionTasks)
+    await waitForIdle()
+    if (owner !== null) {
+      await cloudWaitForWrites(owner)
+    }
+    if (operationEpoch !== historyEpoch || owner !== historyStorageOwner) {
+      throw new Error('登录账号已变化，请重试导入')
+    }
     historyEpoch += 1
+    operationEpoch = historyEpoch
     initTask = undefined
     sessionLoads.clear()
-    await waitForIdle()
     await db.clearStaging()
     let summaries: SessionSummary[]
     try {
       await write()
+      if (operationEpoch !== historyEpoch || owner !== storageOwner()) {
+        throw new Error('登录账号已变化，请重试导入')
+      }
       summaries = await db.commitStaging()
     } catch (error) {
       await db.clearStaging().catch(db.reportStorageError('clear unfinished history replacement'))
@@ -434,14 +588,16 @@ export const replaceHistory = async (write: () => Promise<void>): Promise<number
     })
     return summaries.length
   } finally {
-    set({ importingHistory: false })
-    retrySaveSessions()
-    const { activeId, ready } = get()
-    // 替换失败时恢复被取消的详情读取，原有记录继续可用。
-    if (activeId !== null) {
-      void ensureSessionLoaded(activeId)
-    } else if (!ready) {
-      void initChat()
+    if (operationEpoch === historyEpoch && owner === historyStorageOwner) {
+      set({ importingHistory: false })
+      retrySaveSessions()
+      const { activeId, ready } = get()
+      // 替换失败时恢复被取消的详情读取，原有记录继续可用。
+      if (activeId !== null) {
+        void ensureSessionLoaded(activeId)
+      } else if (!ready) {
+        void initChat()
+      }
     }
   }
 }
@@ -479,7 +635,9 @@ export const renameSession = (id: string, title: string) => {
         session.id === id ? { ...session, title } : session
       ),
     }))
-    void db.renameSession(id, title).catch(db.reportStorageError('rename session'))
+    void db
+      .renameSession(id, title, historyStorageOwner)
+      .catch(db.reportStorageError('rename session'))
   }
 }
 
@@ -506,7 +664,7 @@ const removeSessionData = async (id: string): Promise<boolean> => {
     if (epoch !== historyEpoch) {
       return false
     }
-    await db.deleteSession(id)
+    await db.deleteSession(id, historyStorageOwner)
     if (epoch !== historyEpoch) {
       return true
     }
@@ -552,7 +710,7 @@ export const stopReply = (sessionId: string) => getStreamController(sessionId)?.
  * 同步接收成功才清空草稿，附件原件由会话接管；保存失败仍通过保存入口重试。
  */
 export const sendMessage = (targetSessionId: string | null) => {
-  if (get().importingHistory || !get().ready) {
+  if (get().importingHistory || !get().ready || historyStorageOwner !== storageOwner()) {
     return false
   }
   const prepared = prepareDraftMessage(getDraft(targetSessionId), useUploads.getState().tasks)
@@ -782,7 +940,11 @@ const saveServerIds = (sessionId: string, serverIds: Map<string, string>) => {
  * 附件的服务端 id：已有直接用；正在上传的等待同一任务；否则读取本地原件补传。
  * 本地也没有原件（导入的文档附件只有元数据）时返回 null，该附件只展示、不进入请求。
  */
-const ensureServerId = async (apiKey: string, file: FileAttachment): Promise<string | null> => {
+const ensureServerId = async (
+  apiKey: string,
+  file: FileAttachment,
+  channel: Channel
+): Promise<string | null> => {
   if (file.serverId) {
     return file.serverId
   }
@@ -790,11 +952,14 @@ const ensureServerId = async (apiKey: string, file: FileAttachment): Promise<str
   if (task?.status === 'done') {
     return task.serverId
   }
-  const blob = await db.loadFile(file.id)
+  if (channel.managed && channel.ownerId === undefined) {
+    throw new ApiError('http', '渠道账号信息缺失', 409)
+  }
+  const blob = await db.loadFile(file.id, channel.managed ? channel.ownerId : null)
   if (!blob) {
     return null
   }
-  return uploadAttachment(apiKey, file.id, blob, file.name, file.isImage)
+  return uploadAttachment(apiKey, file.id, blob, file.name, file.isImage, channel)
 }
 
 /** 用会话里的最新消息替换请求快照：重传前会重置附件的 serverId，快照必须跟着更新 */
@@ -826,7 +991,9 @@ const prepareFiles = async (
   channel: Channel
 ) => {
   if (channel.protocol === 'openai') {
-    if (request.question.files.length) {throw new ApiError('protocol', { key: 'channelTextOnly' })}
+    if (request.question.files.length) {
+      throw new ApiError('protocol', { key: 'channelTextOnly' })
+    }
     return {
       history: request.history.map((message) =>
         message.role === 'user' ? { ...message, files: [] } : message
@@ -847,7 +1014,7 @@ const prepareFiles = async (
   })
   const uploads = Promise.allSettled(
     request.question.files.map(async (file) => {
-      const serverId = await ensureServerId(apiKey, file)
+      const serverId = await ensureServerId(apiKey, file, channel)
       if (serverId) {
         serverIds.set(file.id, serverId)
       }
@@ -875,7 +1042,7 @@ const prepareFiles = async (
   for (const file of pending.values()) {
     signal.throwIfAborted()
     try {
-      const serverId = await Promise.race([ensureServerId(apiKey, file), aborted])
+      const serverId = await Promise.race([ensureServerId(apiKey, file, channel), aborted])
       if (serverId) {
         serverIds.set(file.id, serverId)
         saveServerIds(sessionId, new Map([[file.id, serverId]]))
@@ -981,6 +1148,7 @@ const waitForRetry = (attempt: number, signal: AbortSignal) =>
  * 服务端判定 file_id 失效时重新补传后重发，退避重试且次数有上限，超过则按原始报错收尾。
  */
 const streamReply = async (sessionId: string, initial: AssistantMessage, request: Request) => {
+  const epoch = historyEpoch
   const channel = getChannelSnapshot(initial.channelId)
   const controller = new AbortController()
   if (channel.protocol === 'openai' && !getSession(sessionId)?.title) {
@@ -993,7 +1161,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     )
       .slice(0, 28)
       .join('')
-    if (title) {updateSession(sessionId, (session) => ({ ...session, title }))}
+    if (title) {
+      updateSession(sessionId, (session) => ({ ...session, title }))
+    }
   }
   if (!getSession(sessionId)?.title) {
     titleRequests.add(controller)
@@ -1047,6 +1217,10 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         )
         const blockIndexes = new Map<number, number>()
         for await (const event of events) {
+          if (epoch !== historyEpoch) {
+            controller.abort()
+            break
+          }
           receivedContent ||= event.type === 'content_block_start'
           if (
             event.type === 'message_delta' &&
@@ -1117,14 +1291,22 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
     }
   } finally {
     titleRequests.delete(controller)
-    streamFlushes.delete(sessionId)
     cancelAnimationFrame(frame)
-    updateReply(sessionId, reply)
-    set((state) => ({
-      streaming: Object.fromEntries(
-        Object.entries(state.streaming).filter(([id]) => id !== sessionId)
-      ),
-    }))
-    persist(sessionId)
+    if (epoch === historyEpoch) {
+      streamFlushes.delete(sessionId)
+      updateReply(sessionId, reply)
+      set((state) => ({
+        streaming: Object.fromEntries(
+          Object.entries(state.streaming).filter(([id]) => id !== sessionId)
+        ),
+      }))
+      persist(sessionId)
+    }
   }
 }
+
+useAccount.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) {
+    switchHistorySource(state.user?.id ?? null)
+  }
+})

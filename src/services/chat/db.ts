@@ -1,5 +1,16 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { toSessionSummary, type Session, type SessionSummary } from './types.js'
+import { storageOwner } from '../backend/state.js'
+import {
+  cloudDelete,
+  cloudGet,
+  cloudImport,
+  cloudList,
+  cloudReadFile,
+  cloudRename,
+  cloudSave,
+  cloudSaveFiles,
+} from '../backend/storage.js'
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
 const DB_VERSION = 11
@@ -32,6 +43,11 @@ interface ChatDB extends DBSchema {
 }
 
 let dbPromise: Promise<IDBPDatabase<ChatDB>> | null = null
+let cloudStaging: {
+  owner: number
+  sessions: Map<string, Session>
+  files: Map<string, StoredFile>
+} | null = null
 
 const storedSummary = (session: Session): StoredSessionSummary => ({
   ...toSessionSummary(session),
@@ -75,13 +91,25 @@ const getDB = () =>
     throw error
   }))
 
-export const loadSessionSummaries = async (): Promise<SessionSummary[]> =>
-  (await (await getDB()).getAll('sessionSummaries')).map(toSessionSummary)
+export const loadSessionSummaries = async (owner = storageOwner()): Promise<SessionSummary[]> =>
+  owner === null
+    ? (await (await getDB()).getAll('sessionSummaries')).map(toSessionSummary)
+    : cloudList(owner)
 
-export const loadSession = async (id: string): Promise<Session | undefined> =>
-  (await getDB()).get('sessions', id)
+export const loadSession = async (
+  id: string,
+  owner = storageOwner()
+): Promise<Session | undefined> =>
+  owner === null ? (await getDB()).get('sessions', id) : cloudGet(owner, id)
 
-export const saveSession = async (session: Session, files: StoredFile[] = []): Promise<void> => {
+export const saveSession = async (
+  session: Session,
+  files: StoredFile[] = [],
+  owner = storageOwner()
+): Promise<void> => {
+  if (owner !== null) {
+    return cloudSave(owner, session, files)
+  }
   const summary = storedSummary(session)
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries', 'files'], 'readwrite')
   await Promise.all([
@@ -102,7 +130,14 @@ export const saveSession = async (session: Session, files: StoredFile[] = []): P
 }
 
 /** 未打开的会话也可重命名，只读取该会话，原子更新详情和列表。 */
-export const renameSession = async (id: string, title: string): Promise<void> => {
+export const renameSession = async (
+  id: string,
+  title: string,
+  owner = storageOwner()
+): Promise<void> => {
+  if (owner !== null) {
+    return cloudRename(owner, id, title)
+  }
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries'], 'readwrite')
   await Promise.all([
     (async () => {
@@ -124,7 +159,10 @@ export const renameSession = async (id: string, title: string): Promise<void> =>
 }
 
 /** 删除会话，仅清理已无会话引用的本地原件；远端文件不删。 */
-export const deleteSession = async (sessionId: string): Promise<void> => {
+export const deleteSession = async (sessionId: string, owner = storageOwner()): Promise<void> => {
+  if (owner !== null) {
+    return cloudDelete(owner, sessionId)
+  }
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries', 'files'], 'readwrite')
   await Promise.all([
     (async () => {
@@ -152,13 +190,31 @@ const putFiles = async (store: 'files' | 'filesStaging', files: StoredFile[]) =>
   await Promise.all([...files.map((file) => tx.store.put(file)), tx.done])
 }
 
-export const saveFiles = (files: StoredFile[]): Promise<void> => putFiles('files', files)
+export const saveFiles = (files: StoredFile[], owner = storageOwner()): Promise<void> =>
+  owner === null ? putFiles('files', files) : cloudSaveFiles(owner, files)
 
-export const loadFile = async (id: string): Promise<Blob | undefined> =>
-  (await (await getDB()).get('files', id))?.blob
+export const loadFile = async (id: string, owner = storageOwner()): Promise<Blob | undefined> =>
+  owner === null ? (await (await getDB()).get('files', id))?.blob : cloudReadFile(owner, id)
+
+/** Always read the original browser database; signing in never uploads it automatically. */
+export const readLocalSnapshot = async () => {
+  const database = await getDB()
+  const tx = database.transaction(['sessions', 'files'])
+  const [sessions, files] = await Promise.all([
+    tx.objectStore('sessions').getAll(),
+    tx.objectStore('files').getAll(),
+  ])
+  await tx.done
+  return { sessions, files }
+}
 
 /** 清空导入暂存：开始导入前清除上次中断（如关闭页面）遗留的数据，导入失败后清除本次写入。 */
 export const clearStaging = async (): Promise<void> => {
+  const owner = storageOwner()
+  if (cloudStaging || owner !== null) {
+    cloudStaging = owner === null ? null : { owner, sessions: new Map(), files: new Map() }
+    return
+  }
   const tx = (await getDB()).transaction(['sessionsStaging', 'filesStaging'], 'readwrite')
   await Promise.all([
     tx.objectStore('sessionsStaging').clear(),
@@ -168,14 +224,40 @@ export const clearStaging = async (): Promise<void> => {
 }
 
 export const addStagingSession = async (session: Session): Promise<void> => {
+  if (cloudStaging) {
+    if (cloudStaging.sessions.has(session.id)) {
+      throw new Error('Duplicate session ID in archive')
+    }
+    cloudStaging.sessions.set(session.id, session)
+    return
+  }
   await (await getDB()).add('sessionsStaging', session)
 }
 
-export const saveStagingFiles = (files: StoredFile[]): Promise<void> =>
-  putFiles('filesStaging', files)
+export const saveStagingFiles = async (files: StoredFile[]): Promise<void> => {
+  if (cloudStaging) {
+    for (const file of files) {
+      cloudStaging.files.set(file.id, file)
+    }
+    return
+  }
+  return putFiles('filesStaging', files)
+}
 
 /** 图片位于会话 JSON 之后；全部读完后回填具体 MIME，保留归档给出的 isImage 标识。 */
 export const updateStagingFileTypes = async (types: ReadonlyMap<string, string>): Promise<void> => {
+  if (cloudStaging) {
+    for (const session of cloudStaging.sessions.values()) {
+      for (const message of session.messages) {
+        if (message.role === 'user') {
+          for (const file of message.files) {
+            file.mimeType = types.get(file.id) ?? ''
+          }
+        }
+      }
+    }
+    return
+  }
   const tx = (await getDB()).transaction('sessionsStaging', 'readwrite')
   await Promise.all([
     (async () => {
@@ -208,6 +290,19 @@ export const updateStagingFileTypes = async (types: ReadonlyMap<string, string>)
  * 逐条游标复制，同一时间只读取一条记录；事务失败时整体回滚，正式数据不变。
  */
 export const commitStaging = async (): Promise<SessionSummary[]> => {
+  if (cloudStaging) {
+    const snapshot = cloudStaging
+    const summaries = await cloudImport(
+      snapshot.owner,
+      [...snapshot.sessions.values()],
+      [...snapshot.files.values()],
+      true
+    )
+    if (cloudStaging === snapshot) {
+      cloudStaging = null
+    }
+    return summaries
+  }
   const summaries: SessionSummary[] = []
   const tx = (await getDB()).transaction(
     ['sessions', 'sessionSummaries', 'files', 'sessionsStaging', 'filesStaging'],

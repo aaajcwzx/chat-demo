@@ -7,6 +7,7 @@ import { ChatModelMenu } from '../models/ChatModelMenu.js'
 import { CollapsedSider } from '../sider/CollapsedSider.js'
 import { openMobileSider } from '../sider/mobileSiderState.js'
 import styles from './ChatHeader.module.css'
+import { AccountControl } from '../account/AccountControl.js'
 
 /** A shared toolbar above both new chats and existing conversations. */
 export const ChatHeader = ({
@@ -47,6 +48,7 @@ export const ChatHeader = ({
           onClick={newChat}
         />
       ) : null}
+      <AccountControl />
     </header>
   )
 }

@@ -1,6 +1,7 @@
 import { getActiveChannel, getChannelSnapshot, type Channel } from '../channels.js'
 import { ApiError, readErrorResponse, request } from './http.js'
 import { streamOpenAI } from './openai.js'
+import { backendRequest, jsonRequest } from '../backend/client.js'
 import { readMessageEvent } from './parseEvent.js'
 import { readServerSentEvents } from './sse.js'
 import type {
@@ -23,9 +24,10 @@ const isErrorBody = (value: unknown): value is ApiErrorBody =>
   'error' in value &&
   typeof (value as ApiErrorBody).error?.message === 'string'
 
-export const requireDeepseekChannel = () => {
-  if (getActiveChannel().protocol !== 'deepseek')
-    {throw new ApiError('protocol', { key: 'channelFeatureUnavailable' })}
+export const requireDeepseekChannel = (channel: Channel = getChannelSnapshot()) => {
+  if (channel.protocol !== 'deepseek') {
+    throw new ApiError('protocol', { key: 'channelFeatureUnavailable' })
+  }
 }
 
 const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string> => ({
@@ -37,6 +39,15 @@ const anthropicHeaders = (apiKey: string, beta: boolean): Record<string, string>
 
 /** 用 GET /models 校验 API Key（不产生费用） */
 export const verifyApiKey = async (apiKey: string, signal?: AbortSignal): Promise<void> => {
+  const channel = getChannelSnapshot()
+  if (channel.managed) {
+    await backendRequest(
+      '/channels/models',
+      jsonRequest('POST', { ...channel, apiKey }, signal),
+      channel.ownerId
+    )
+    return
+  }
   await request(`${getActiveChannel().baseUrl}/models`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -52,20 +63,25 @@ export const uploadFile = async (
   apiKey: string,
   file: File,
   purpose: FilePurpose | null,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  channel: Channel = getChannelSnapshot()
 ): Promise<FileObject> => {
-  requireDeepseekChannel()
+  requireDeepseekChannel(channel)
   const form = new FormData()
   if (purpose) {
     form.append('purpose', purpose)
   }
   form.append('file', file)
-  const response = await request(`${ANTHROPIC_BASE_URL}/files`, {
-    method: 'POST',
-    headers: anthropicHeaders(apiKey, true),
-    body: form,
-    signal,
-  })
+  const response = await request(
+    `${ANTHROPIC_BASE_URL}/files`,
+    {
+      method: 'POST',
+      headers: anthropicHeaders(apiKey, true),
+      body: form,
+      signal,
+    },
+    channel
+  )
   return (await response.json()) as FileObject
 }
 
@@ -99,16 +115,20 @@ export async function* streamMessage(
     yield* streamOpenAI({ ...channel, apiKey }, body, signal)
     return
   }
-  const response = await request(`${ANTHROPIC_BASE_URL}/messages`, {
-    method: 'POST',
-    headers: {
-      ...anthropicHeaders(apiKey, hasFile(body)),
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
+  const response = await request(
+    `${ANTHROPIC_BASE_URL}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        ...anthropicHeaders(apiKey, hasFile(body)),
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({ ...body, stream: true }),
+      signal,
     },
-    body: JSON.stringify({ ...body, stream: true }),
-    signal,
-  })
+    channel
+  )
   const contentType = response.headers.get('Content-Type') ?? ''
   if (!response.body || !contentType.includes('text/event-stream')) {
     throw await readErrorResponse(response, 'protocol', '')

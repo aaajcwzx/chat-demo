@@ -1,19 +1,31 @@
 import { normalizeBaseUrl, type Channel } from '../channels.js'
 import { ApiError, request } from './http.js'
+import { backendRequest, jsonRequest } from '../backend/client.js'
 
 export const listChannelModels = async (
   channel: Channel,
   signal?: AbortSignal
 ): Promise<string[]> => {
+  if (channel.managed) {
+    return backendRequest<string[]>(
+      '/channels/models',
+      jsonRequest('POST', channel, signal),
+      channel.ownerId
+    )
+  }
   const base =
     channel.protocol === 'deepseek'
       ? channel.baseUrl.replace(/\/+$/, '')
       : normalizeBaseUrl(channel.baseUrl)
-  const response = await request(`${base}/models`, {
-    method: 'GET',
-    headers: channel.apiKey.trim() ? { Authorization: `Bearer ${channel.apiKey.trim()}` } : {},
-    signal,
-  })
+  const response = await request(
+    `${base}/models`,
+    {
+      method: 'GET',
+      headers: channel.apiKey.trim() ? { Authorization: `Bearer ${channel.apiKey.trim()}` } : {},
+      signal,
+    },
+    channel
+  )
   let body: unknown
   try {
     body = await response.json()

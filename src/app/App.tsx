@@ -5,6 +5,7 @@ import { useSettings } from '../services/settings.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll } from './viewport.js'
 import {
   bindChatPersistence,
+  bindCloudRefresh,
   initChat,
   retrySaveSessions,
   selectSession,
@@ -15,7 +16,7 @@ import { closeSearchPanel } from '../components/search/searchPanelState.js'
 import { SessionView } from '../components/session/SessionView.js'
 import { ChatHeader } from '../components/session/ChatHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
-import { ensureApiKey } from '../components/settings/settingsDialogState.js'
+import { closeSettings, ensureApiKey } from '../components/settings/settingsDialogState.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -25,9 +26,15 @@ import { stopReadAloud } from '../services/speech/readAloud.js'
 import { closeMobileSider } from '../components/sider/mobileSiderState.js'
 import { MobileSider, Sider } from '../components/sider/Sider.js'
 import styles from './App.module.css'
+import { initAccount } from '../services/backend/account.js'
+import { useAccount } from '../services/backend/state.js'
+import { loadAccountChannels } from '../services/channels.js'
+import { AccountDialogs } from '../components/account/AccountControl.js'
 
 export const App = () => {
   const t = useTranslate()
+  const cloud = useAccount((state) => state.user !== null)
+  const accountId = useAccount((state) => state.user?.id ?? null)
   const channel = useActiveChannel()
   const isMobile = useIsMobile()
   const locale = useSettings((state) => state.locale)
@@ -60,18 +67,24 @@ export const App = () => {
   // 文件数、存储空间达到上限时，附件上只显示「上传失败」，原因用 toast 说明
   useEffect(() => onUploadNotice(showToast), [])
   useEffect(bindChatPersistence, [])
+  useEffect(bindCloudRefresh, [])
 
   // 搜索结果面板只属于当前会话
-  useEffect(closeSearchPanel, [activeId])
+  useEffect(closeSearchPanel, [activeId, accountId])
+  useEffect(closeSettings, [accountId])
   // 切换会话时停止朗读
-  useEffect(stopReadAloud, [activeId, channel])
+  useEffect(stopReadAloud, [activeId, channel, accountId])
   // 移动端选中会话、切换布局后收起抽屉
-  useEffect(closeMobileSider, [activeId, isMobile])
+  useEffect(closeMobileSider, [activeId, isMobile, accountId])
 
   useEffect(() => {
-    void initChat()
-    // 首次打开先在设置里输入 API Key
-    ensureApiKey()
+    void (async () => {
+      await initAccount()
+      await Promise.all([initChat(), loadAccountChannels()])
+      if (!useAccount.getState().enabled) {
+        ensureApiKey()
+      }
+    })().catch(() => showToast({ key: 'accountLoadFailed', type: 'error' }))
   }, [])
 
   return (
@@ -85,7 +98,7 @@ export const App = () => {
           />
           {saveError ? (
             <div className={styles.saveError} role="alert">
-              <span>{t('sessionSaveFailed')}</span>
+              <span>{t(cloud ? 'accountCloudSaveFailed' : 'sessionSaveFailed')}</span>
               <Button
                 variant="outlined"
                 size="s"
@@ -132,6 +145,7 @@ export const App = () => {
         <SearchPanel />
       </div>
       <SettingsDialog />
+      <AccountDialogs />
       <Toast />
     </>
   )

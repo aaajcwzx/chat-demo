@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { createId } from '../utils/id.js'
+import { backendRequest, jsonRequest } from './backend/client.js'
+import { storageOwner, useAccount } from './backend/state.js'
 
 export type ChannelProtocol = 'deepseek' | 'openai'
 export type Channel = {
@@ -9,6 +11,10 @@ export type Channel = {
   baseUrl: string
   apiKey: string
   model: string
+  managed?: boolean
+  hasKey?: boolean
+  ownerId?: number
+  clearKey?: boolean
 }
 
 export const OFFICIAL_CHANNEL_ID = 'deepseek-official'
@@ -181,11 +187,14 @@ export const getChannelSnapshot = (id?: string): Channel => ({
 })
 export const isChannelConfigured = (channel = getActiveChannel()) =>
   channel.protocol === 'deepseek'
-    ? Boolean(channel.apiKey.trim())
+    ? Boolean(channel.managed ? channel.hasKey : channel.apiKey.trim())
     : Boolean(channel.baseUrl && channel.model.trim())
 
 const persist = () => {
   const state = useChannels.getState()
+  if (storageOwner() !== null || state.channels.some((channel) => channel.managed)) {
+    return
+  }
   try {
     localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify({ version: 1, ...state }))
     const key = state.channels.find((channel) => channel.id === OFFICIAL_CHANNEL_ID)?.apiKey ?? ''
@@ -199,20 +208,29 @@ const persist = () => {
   }
 }
 
-export const newChannel = (): Channel => ({
-  id: createId(),
-  name: '',
-  protocol: 'openai',
-  baseUrl: '',
-  apiKey: '',
-  model: '',
-})
+export const newChannel = (): Channel => {
+  const owner = storageOwner()
+  return {
+    id: createId(),
+    name: '',
+    protocol: 'openai',
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    ...(owner !== null ? { managed: true, ownerId: owner } : {}),
+  }
+}
 export const validateChannel = (draft: Channel): Channel => {
   if (draft.id === OFFICIAL_CHANNEL_ID) {
-    if (!draft.apiKey.trim()) {
+    if (!draft.apiKey.trim() && !(draft.managed && draft.hasKey && !draft.clearKey)) {
       throw new ChannelConfigError('channelKeyRequired')
     }
-    return officialChannel(draft.apiKey.trim())
+    return {
+      ...officialChannel(draft.apiKey.trim()),
+      managed: draft.managed,
+      hasKey: draft.hasKey,
+      ownerId: draft.ownerId,
+    }
   }
   if (!draft.name.trim()) {
     throw new ChannelConfigError('channelNameRequired')
@@ -230,8 +248,16 @@ export const validateChannel = (draft: Channel): Channel => {
   }
 }
 
-export const saveChannel = (draft: Channel, models?: string[]): Channel => {
-  const channel = validateChannel(draft)
+export const saveChannel = async (draft: Channel, models?: string[]): Promise<Channel> => {
+  let channel = validateChannel(draft)
+  if (channel.managed) {
+    const row = await backendRequest<Omit<Channel, 'apiKey'>>(
+      `/channels/${encodeURIComponent(channel.id)}`,
+      jsonRequest('PUT', { ...channel, clearKey: draft.clearKey, models }),
+      channel.ownerId
+    )
+    channel = { ...row, apiKey: '' }
+  }
   useChannels.setState((state) => {
     const previous = state.channels.find((item) => item.id === channel.id)
     let modelLists = { ...state.modelLists }
@@ -255,16 +281,28 @@ export const saveChannel = (draft: Channel, models?: string[]): Channel => {
   persist()
   return channel
 }
-export const activateChannel = (id: string) => {
-  if (!useChannels.getState().channels.some((channel) => channel.id === id)) {
+export const activateChannel = async (id: string) => {
+  const channel = useChannels.getState().channels.find((channel) => channel.id === id)
+  if (!channel) {
     return
+  }
+  if (channel.managed) {
+    await backendRequest('/channels/active', jsonRequest('POST', { id }), channel.ownerId)
   }
   useChannels.setState({ activeId: id })
   persist()
 }
-export const removeChannel = (id: string) => {
+export const removeChannel = async (id: string) => {
   if (id === OFFICIAL_CHANNEL_ID) {
     return
+  }
+  const channel = useChannels.getState().channels.find((channel) => channel.id === id)
+  if (channel?.managed) {
+    await backendRequest(
+      `/channels/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+      channel.ownerId
+    )
   }
   useChannels.setState((state) => {
     const modelLists = withoutModelList(state.modelLists, id)
@@ -276,9 +314,13 @@ export const removeChannel = (id: string) => {
   })
   persist()
 }
-export const setActiveApiKey = (apiKey: string | null) => {
+export const setActiveApiKey = async (apiKey: string | null) => {
   const active = getActiveChannel()
   const key = apiKey?.trim() ?? ''
+  if (active.managed) {
+    await saveChannel({ ...active, apiKey: key, clearKey: apiKey === null })
+    return
+  }
   useChannels.setState((state) => {
     const modelLists =
       active.apiKey !== key ? withoutModelList(state.modelLists, active.id) : state.modelLists
@@ -292,9 +334,17 @@ export const setActiveApiKey = (apiKey: string | null) => {
   persist()
 }
 
-export const cacheChannelModels = (id: string, models: string[]) => {
-  if (!useChannels.getState().channels.some((channel) => channel.id === id)) {
+export const cacheChannelModels = async (id: string, models: string[]) => {
+  const channel = useChannels.getState().channels.find((channel) => channel.id === id)
+  if (!channel) {
     return
+  }
+  if (channel.managed) {
+    await backendRequest(
+      `/channels/${encodeURIComponent(id)}/models`,
+      jsonRequest('PUT', { models }),
+      channel.ownerId
+    )
   }
   useChannels.setState((state) => ({
     modelLists: { ...state.modelLists, [id]: normalizeModelList(models) },
@@ -302,8 +352,13 @@ export const cacheChannelModels = (id: string, models: string[]) => {
   persist()
 }
 
-export const setChannelModel = (id: string, model: string) => {
+export const setChannelModel = async (id: string, model: string) => {
   if (!model.trim()) {
+    return
+  }
+  const channel = useChannels.getState().channels.find((channel) => channel.id === id)
+  if (channel?.managed && channel.protocol === 'openai') {
+    await saveChannel({ ...channel, model }, useChannels.getState().modelLists[id])
     return
   }
   useChannels.setState((state) => ({
@@ -320,3 +375,43 @@ export const setChannelModel = (id: string, model: string) => {
 if (!read(CHANNELS_STORAGE_KEY) && read(LEGACY_KEY)) {
   persist()
 }
+
+let channelEpoch = 0
+let channelLoad: { owner: number; task: Promise<void> } | undefined
+export const loadAccountChannels = (owner = storageOwner()): Promise<void> => {
+  if (owner !== null && channelLoad?.owner === owner) {
+    return channelLoad.task
+  }
+  const epoch = ++channelEpoch
+  if (owner === null) {
+    channelLoad = undefined
+    useChannels.setState(load())
+    return Promise.resolve()
+  }
+  useChannels.setState({
+    channels: [{ ...officialChannel(), managed: true, ownerId: owner, hasKey: false }],
+    activeId: OFFICIAL_CHANNEL_ID,
+    modelLists: {},
+  })
+  const task = (async () => {
+    const state = await backendRequest<ChannelState>('/channels', {}, owner)
+    if (epoch === channelEpoch) {
+      useChannels.setState({
+        ...state,
+        channels: state.channels.map((channel) => ({ ...channel, apiKey: '' })),
+      })
+    }
+  })().finally(() => {
+    if (channelLoad?.task === task) {
+      channelLoad = undefined
+    }
+  })
+  channelLoad = { owner, task }
+  return task
+}
+export const readLocalChannels = () => load()
+useAccount.subscribe((state, previous) => {
+  if (state.user?.id !== previous.user?.id) {
+    void loadAccountChannels(state.user?.id ?? null).catch(() => {})
+  }
+})

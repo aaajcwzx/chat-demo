@@ -4,6 +4,7 @@ CHAT_DEMO_SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 CHAT_DEMO_CACHE_DIR="${CHAT_DEMO_CACHE_DIR:-/home/ubuntu/.cache/chat-demo}"
 CHAT_DEMO_BUILD_IMAGE="node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54"
 CHAT_DEMO_PNPM_VERSION="12.6.0"
+source "$CHAT_DEMO_SOURCE_DIR/scripts/resource-guard.sh"
 
 chat_demo_require_custom_clean() {
   if [[ "$(git -C "$CHAT_DEMO_SOURCE_DIR" branch --show-current)" != custom ]]; then
@@ -21,8 +22,12 @@ chat_demo_require_custom_clean() {
 }
 
 chat_demo_run_node() (
+  chat_build_guard || exit 1
   CHAT_DEMO_CONTAINER_NAME="chat-demo-${1}-$(id -u)-${BASHPID}-${RANDOM}"
+  chat_build_watch_memory "$CHAT_DEMO_CONTAINER_NAME" &
+  CHAT_DEMO_WATCH_PID=$!
   chat_demo_cleanup_container() {
+    kill "$CHAT_DEMO_WATCH_PID" 2>/dev/null || true
     sudo -n docker stop --time 5 "$CHAT_DEMO_CONTAINER_NAME" >/dev/null 2>&1 || true
   }
   trap chat_demo_cleanup_container EXIT
@@ -30,10 +35,11 @@ chat_demo_run_node() (
   trap 'exit 143' TERM
   install -d "$CHAT_DEMO_CACHE_DIR"
   sudo -n docker run --rm --name "$CHAT_DEMO_CONTAINER_NAME" --user "$(id -u):$(id -g)" --network host \
-    --memory 1536m --memory-swap 1536m --cpus 2 \
+    --memory "${CHAT_BUILD_LIMIT_MIB}m" --memory-swap "${CHAT_BUILD_LIMIT_MIB}m" --cpus 1 --cpuset-cpus "$CHAT_BUILD_CPU" --pids-limit 128 \
+    --label com.chat-demo.build=true \
     --label "com.chat-demo.task=$1" --label "com.chat-demo.source=$CHAT_DEMO_SOURCE_DIR" \
     -e npm_config_cache=/cache/npm \
-    -e NODE_OPTIONS=--max-old-space-size=1024 -e RAYON_NUM_THREADS=2 \
+    -e NODE_OPTIONS=--max-old-space-size=384 -e RAYON_NUM_THREADS=1 -e UV_THREADPOOL_SIZE=1 \
     -e "CHAT_DEMO_PNPM_VERSION=$CHAT_DEMO_PNPM_VERSION" \
     -v "$CHAT_DEMO_SOURCE_DIR:/workspace" -v "$CHAT_DEMO_CACHE_DIR:/cache" \
     -w /workspace "$CHAT_DEMO_BUILD_IMAGE" sh -c 'set -eu
