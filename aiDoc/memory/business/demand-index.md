@@ -2,10 +2,9 @@
 
 ## Active
 
-- [生产服务器构建资源限制](active/server-resource-safety.md)
-
-- [Chat Demo Go 后端与服务器存储](active/chat-demo-backend.md)
+- 暂无
 
 ## Done
 
-- 暂无
+- [生产服务器构建资源限制](done/server-resource-safety.md)
+- [Chat Demo Go 后端与服务器存储](done/chat-demo-backend.md)

@@ -57,18 +57,25 @@ React 的账号、网络、迁移与云端存储封装位于 `src/services/backe
 单任务硬上限 640 MiB，启动前保留至少 1 GiB 可用内存；运行中余量不足时停止自身任务。
 不要并行手动启动编译器，也不要在生产机执行全量 `swag init`；完整文档生成移到独立 CI / 开发机。
 本项目新增接口的文档由 `./scripts/update-chat-swagger.py` 轻量更新；修改接口时同步 API 注释与该脚本。
-完整管理端构建优先使用 `.github/workflows/chat-backend-build.yml` 的独立 CI，Go 与管理端仍顺序构建。
+完整管理端构建使用 `.github/workflows/chat-backend-build.yml` 的独立 CI，Go 与管理端仍顺序构建。
 服务器受限构建超过 120 秒会停止；不要为构建提高资源上限。当前部署可发布已经验证的静态产物。
+
+完整管理端的生产发布流程：
+
+1. 提交并推送 `backend-custom`，等待 GitHub Actions 的 Go 测试、后端编译与管理端构建成功。
+2. 下载对应提交的 `chat-backend-<完整提交号>` 产物，核对 GitHub artifact 的 SHA-256 摘要及 `commit.txt`。
+3. 将产物中的 `admin/` 放到 `web/dist/`，保留该产物的提交号与校验记录，再执行 `./scripts/deploy-admin.sh --publish-only`。
+4. 通过 `./scripts/run-browser-test.sh tests/production-smoke.cjs` 验收线上登录与接口。
+
+生产服务器不承担完整管理端编译。下面的受限 Go 构建流程适用于只修改后端的情况：
 
 ```bash
 cd /home/ubuntu/chat-demo-backend
 ./scripts/build-backend.sh
-./scripts/build-admin.sh
 git add .
 git commit -m "feat: describe the change"
 git push origin backend-custom
 ./scripts/deploy-backend.sh
-./scripts/deploy-admin.sh
 ```
 
 React 按已有发布流程提交、检查、推送和部署：
@@ -83,6 +90,8 @@ git push origin custom
 ```
 
 管理端使用 `/admin/` 资源基路径与 hash 路由；依赖由 `web/pnpm-lock.yaml` 固定。
+仪表盘的公开插件列表由 OpenResty 精确代理 `/admin/plugin/shopPlugin/getShopPluginList`；
+只接受 GET / HEAD，校验上游 HTTPS 证书，且不转发本地 Cookie、登录令牌或用户信息。
 管理端安装固定使用 pnpm 12.6.0，降低安装并发；编译直接运行 Vite，不叠加包管理器父进程。
 已下架的 `vite-auto-import-svg` 由项目内 `web/vitePlugin/localSvg/` 替代，保持原 SVG 图标 ID 与资产。
 旧 Vue CLI 构建依赖与全局增大内存的脚本已移除，当前构建只使用 Vite；依赖安装和编译分阶段运行。

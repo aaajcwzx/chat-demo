@@ -74,6 +74,26 @@ server {
     location ^~ /api/ {
 PROXY
     }
+    # GVA's relative plugin API URL resolves under the /admin/ base path.
+    # Only this public listing is proxied, without local account credentials.
+    location = /admin/plugin/shopPlugin/getShopPluginList {
+        limit_except GET { deny all; }
+        proxy_pass https://plugin.gin-vue-admin.com/api/shopPlugin/getShopPluginList;
+        proxy_http_version 1.1;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header Host plugin.gin-vue-admin.com;
+        proxy_set_header Accept application/json;
+        proxy_set_header Content-Length "";
+        proxy_set_header Connection "";
+        proxy_ssl_server_name on;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 5;
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+        add_header Cache-Control "no-cache";
+    }
     location = /admin { return 308 /admin/; }
     location ^~ /admin/ {
         alias /www/sites/chat-demo-admin/index/;

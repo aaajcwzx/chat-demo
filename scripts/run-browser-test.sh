@@ -17,5 +17,5 @@ trap chat_browser_cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 sudo -n systemd-run --scope --quiet --unit "$CHAT_BROWSER_SCOPE" \
-  -p "MemoryMax=${CHAT_BUILD_LIMIT_MIB}M" -p MemorySwapMax=0 -p CPUQuota=100% -p "AllowedCPUs=$CHAT_BUILD_CPU" -p TasksMax=256 -p Nice=10 \
+  -p "MemoryMax=${CHAT_BUILD_LIMIT_MIB}M" -p MemorySwapMax=0 -p CPUQuota=100% -p "AllowedCPUs=$CHAT_BUILD_CPU" -p TasksMax=256 -p CPUWeight=10 \
   /usr/bin/sudo -u ubuntu -- /usr/bin/node "$(realpath "$1")"
