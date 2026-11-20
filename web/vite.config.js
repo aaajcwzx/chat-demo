@@ -1,13 +1,13 @@
-import { viteLogo } from './src/core/config'
+import { viteLogo } from './src/core/config.js'
 import Banner from 'vite-plugin-banner'
 import * as path from 'path'
 import { loadEnv } from 'vite'
 import vuePlugin from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import VueFilePathPlugin from './vitePlugin/componentName/index.js'
-import { svgBuilder } from 'vite-auto-import-svg'
+import { localSvgIcons } from './vitePlugin/localSvg/index.js'
 import vueRootValidator from 'vite-check-multiple-dom'
-import { AddSecret } from './vitePlugin/secret'
+import { AddSecret } from './vitePlugin/secret/index.js'
 import UnoCSS from '@unocss/vite'
 
 // @see https://cn.vitejs.dev/config/
@@ -17,13 +17,17 @@ export default ({ mode }) => {
   viteLogo(env)
 
   const timestamp = Date.parse(new Date())
+  // The package documents a dev-server warning overlay. Its closeBundle hook
+  // truncates production HTML, so use Vite's documented serve-only boundary.
+  const rootValidator = vueRootValidator()
+  rootValidator.apply = 'serve'
 
   const alias = {
     '@': path.resolve(import.meta.dirname, './src'),
     vue$: 'vue/dist/vue.runtime.esm-bundler.js'
   }
 
-  const base = '/'
+  const base = mode === 'production' ? '/admin/' : '/'
   const root = './'
   const outDir = 'dist'
 
@@ -86,11 +90,15 @@ export default ({ mode }) => {
       env.VITE_POSITION === 'open' &&
       vueDevTools({ launchEditor: env.VITE_EDITOR }),
       vuePlugin(),
-      svgBuilder(['./src/plugin/', './src/assets/icons/'], base, outDir, 'assets', mode),
-      [Banner(`\n Build based on gin-vue-admin \n Time : ${timestamp}`)],
+      localSvgIcons(),
+      [Banner({
+        content: (fileName) => /\.(?:js|css)$/.test(fileName)
+          ? `\n Build based on gin-vue-admin \n Time : ${timestamp}` : null,
+        debug: true
+      })],
       VueFilePathPlugin('./src/pathInfo.json'),
       UnoCSS(),
-      vueRootValidator()
+      rootValidator
     ]
   }
   return config

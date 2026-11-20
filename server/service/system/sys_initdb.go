@@ -94,6 +94,22 @@ func RegisterInit(order int, i SubInitializer) {
 
 type InitDBService struct{}
 
+// InitExistingDB initializes the standard GVA tables and seed data in an already
+// provisioned application database, without granting CREATE DATABASE privileges.
+func (initDBService *InitDBService) InitExistingDB(db *gorm.DB, adminPassword string) error {
+	if db == nil || len(adminPassword) < 16 {
+		return errors.New("existing database and a strong bootstrap password are required")
+	}
+	ctx := context.WithValue(context.Background(), "db", db)
+	ctx = context.WithValue(ctx, "dbtype", "pgsql")
+	ctx = context.WithValue(ctx, "adminPassword", adminPassword)
+	sort.Sort(&initializers)
+	if err := createTables(ctx, initializers); err != nil {
+		return err
+	}
+	return NewPgsqlInitHandler().InitData(ctx, initializers)
+}
+
 // InitDB 创建数据库并初始化 总入口
 func (initDBService *InitDBService) InitDB(conf request.InitDB) (err error) {
 	ctx := context.TODO()

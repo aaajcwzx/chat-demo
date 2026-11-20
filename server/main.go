@@ -4,6 +4,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/core"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/initialize"
+	"github.com/flipped-aurora/gin-vue-admin/server/plugin/chat"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
@@ -26,6 +27,10 @@ import (
 // @securityDefinitions.apikey  ApiKeyAuth
 // @in                          header
 // @name                        x-token
+// @securityDefinitions.apikey ChatSessionAuth
+// @in                          header
+// @name                        Cookie
+// @description                 chat-session=<登录Cookie>；聊天账号会话独立于后台x-token。
 // @BasePath                    /
 func main() {
 	// 初始化系统
@@ -47,5 +52,8 @@ func initializeSystem() {
 	initialize.SetupHandlers() // 注册全局函数
 	if global.GVA_DB != nil {
 		initialize.RegisterTables() // 初始化表
+		if err := chat.Bootstrap(); err != nil {
+			panic(err)
+		}
 	}
 }

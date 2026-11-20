@@ -1,6 +1,7 @@
 import './style/element_visiable.scss'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import 'uno.css'
+import 'virtual:gva-local-svg-icons'
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import { setupVueRootValidator } from 'vite-check-multiple-dom/client';

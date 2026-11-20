@@ -1,0 +1,40 @@
+name: chat-demo
+services:
+  backend:
+    container_name: chat-demo-backend
+    image: alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+    user: "1000:1000"
+    working_dir: /runtime
+    command: ["/app/server", "-c", "/config/config.yaml"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 2
+    pids_limit: 128
+    environment:
+      GIN_MODE: release
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: 320MiB
+    env_file: /opt/chat-demo-backend/config/backend.env
+    ports: ["127.0.0.1:8092:8092"]
+    networks: [panel]
+    volumes:
+      - /opt/chat-demo-backend/current:/app:ro
+      - /opt/chat-demo-backend/config/config.yaml:/config/config.yaml:ro
+      - /opt/chat-demo-backend/runtime:/runtime
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m,uid=1000,gid=1000"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8092/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+networks:
+  panel:
+    external: true
+    name: 1panel-network

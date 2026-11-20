@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/flipped-aurora/gin-vue-admin",
+  "tag": "v2.9.2",
+  "license": "Apache-2.0",
+  "backend_branch": "backend-custom",
+  "sync_branch": "backend-main"
+}

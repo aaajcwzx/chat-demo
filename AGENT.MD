@@ -34,6 +34,10 @@
 
 ### 架构
 
+- 本部署服务器只有 4 GB 内存，线上 MySQL、PostgreSQL 与登录通道必须保留资源。
+- 构建与浏览器回归必须经 `scripts/resource-guard.sh` 共用锁，严格串行；单任务上限 640 MiB，并保留至少 1 GiB 可用内存。
+- 不在本生产机运行全量 `swag init`；接口文档使用轻量维护方式或移到独立 CI/开发机生成。不要绕过构建脚本直接启动重任务。
+
 - 保持现有后端分层：`Router -> API -> Service -> Model`
 - `enter.go` 继续作为分组注册与组合入口
 - API 层处理 HTTP 相关逻辑，Service 层不要依赖 `gin.Context`

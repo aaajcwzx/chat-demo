@@ -60,3 +60,8 @@ func NoAuth(message string, c *gin.Context) {
 func FailWithDetailed(data interface{}, message string, c *gin.Context) {
 	Result(ERROR, data, message, c)
 }
+
+// FailWithStatus preserves the common envelope for APIs that use HTTP error statuses.
+func FailWithStatus(status int, message string, c *gin.Context) {
+	c.JSON(status, Response{Code: status, Data: nil, Msg: message})
+}

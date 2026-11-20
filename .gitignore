@@ -32,7 +32,6 @@ server/uploads/
 
 *.iml
 web/.pnpm-debug.log
-web/pnpm-lock.yaml
 
 # binary files
 *.exe
@@ -42,3 +41,5 @@ web/pnpm-lock.yaml
 *.sqlite
 *.sqlite3
 worktrees/
+__pycache__/
+*.pyc

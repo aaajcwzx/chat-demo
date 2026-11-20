@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew Chat Demo IP TLS certificate
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/chat-demo-backend/bin/renew-tls.sh

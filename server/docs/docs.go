@@ -8,7 +8,6 @@ import (
 )
 
 const docTemplate = `{
-    "schemes": {{ marshal .Schemes }},
     "swagger": "2.0",
     "info": {
         "description": "{{escape .Description}}",
@@ -16,8 +15,6 @@ const docTemplate = `{
         "contact": {},
         "version": "{{.Version}}"
     },
-    "host": "{{.Host}}",
-    "basePath": "{{.BasePath}}",
     "paths": {
         "/api/createApi": {
             "post": {
@@ -6527,6 +6524,1360 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/chat/status": {
+            "get": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "获取后端能力与安全登录来源",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/chat/auth/login": {
+            "post": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "登录并设置 HttpOnly Cookie",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Login"
+                        }
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/auth/register": {
+            "post": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "通过邀请码注册普通聊天账号",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Register"
+                        }
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/auth/me": {
+            "get": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "获取当前账号",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/auth/logout": {
+            "post": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "退出并持久撤销当前登录令牌",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/auth/password": {
+            "post": {
+                "tags": [
+                    "ChatAuth"
+                ],
+                "summary": "修改密码并使旧聊天会话失效",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Password"
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/sessions": {
+            "get": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "获取账号下的会话摘要与版本",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/sessions/{id}": {
+            "get": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "获取自己的会话与版本",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "保存自己的会话与附件",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "type": "string",
+                        "description": "上次读取的版本，新会话为0"
+                    },
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Session"
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "也接受 multipart/form-data：session 为 JSON，fileMetadata 为 [{id,name,mimeType}]，每个原件字段为 file:<id>。",
+                "consumes": [
+                    "application/json",
+                    "multipart/form-data"
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "删除自己的会话与无引用附件",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/sessions/{id}/title": {
+            "patch": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "修改自己的会话标题",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "title": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/files/{id}": {
+            "get": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "下载自己的附件原件",
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "安全附件下载，Content-Disposition: attachment",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/files": {
+            "post": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "上传自己的附件原件",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "fileMetadata",
+                        "in": "formData",
+                        "required": false,
+                        "type": "string",
+                        "description": "[{id,name,mimeType}]；每个原件字段名称为 file:<id>"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "动态文件字段为 file:<id>，ID 与 fileMetadata 中的 ID 一致；仅当前账号可访问原件。",
+                "consumes": [
+                    "multipart/form-data"
+                ]
+            }
+        },
+        "/chat/history/import": {
+            "post": {
+                "tags": [
+                    "ChatStorage"
+                ],
+                "summary": "迁移或覆盖导入自己的历史",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "fileMetadata",
+                        "in": "formData",
+                        "required": false,
+                        "type": "string",
+                        "description": "[{id,name,mimeType}]；每个原件字段名称为 file:<id>"
+                    },
+                    {
+                        "name": "sessions",
+                        "in": "formData",
+                        "required": true,
+                        "type": "string",
+                        "description": "现有会话格式的 JSON 数组"
+                    },
+                    {
+                        "name": "replace",
+                        "in": "formData",
+                        "required": false,
+                        "type": "boolean",
+                        "description": "true 在事务中替换该账号历史；默认仅添加缺少的ID"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "动态文件字段为 file:<id>，ID 与 fileMetadata 中的 ID 一致；仅当前账号可访问原件。",
+                "consumes": [
+                    "multipart/form-data"
+                ]
+            }
+        },
+        "/chat/channels": {
+            "get": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "获取渠道元数据和模型缓存，密钥及密文不返回",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/channels/{id}": {
+            "put": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "保存渠道或替换密钥",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Channel"
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "删除自定义渠道",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ]
+            }
+        },
+        "/chat/channels/active": {
+            "post": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "选择自己的渠道",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/channels/models": {
+            "post": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "使用临时或保存的密钥获取模型列表",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/chat.Channel"
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/channels/{id}/models": {
+            "put": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "缓存自己的渠道模型列表",
+                "produces": [
+                    "application/json"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "models": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ]
+            }
+        },
+        "/chat/proxy/{id}": {
+            "get": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "转发模型、附件或语音请求",
+                "produces": [
+                    "text/event-stream",
+                    "application/json",
+                    "application/octet-stream"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "模型原始响应，支持取消与 SSE flush",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": true,
+                        "type": "string",
+                        "description": "允许的服务相对路径，如 chat/completions 或 anthropic/v1/files"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "只允许支持的模型服务接口，使用当前账号的加密密钥；响应保持原始 SSE、JSON 或二进制，不套统一 JSON 信封。"
+            },
+            "post": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "转发模型、附件或语音请求",
+                "produces": [
+                    "text/event-stream",
+                    "application/json",
+                    "application/octet-stream"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "模型原始响应，支持取消与 SSE flush",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": true,
+                        "type": "string",
+                        "description": "允许的服务相对路径，如 chat/completions 或 anthropic/v1/files"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "只允许支持的模型服务接口，使用当前账号的加密密钥；响应保持原始 SSE、JSON 或二进制，不套统一 JSON 信封。",
+                "consumes": [
+                    "application/json",
+                    "multipart/form-data"
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "ChatChannels"
+                ],
+                "summary": "转发模型、附件或语音请求",
+                "produces": [
+                    "text/event-stream",
+                    "application/json",
+                    "application/octet-stream"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "模型原始响应，支持取消与 SSE flush",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "需要登录",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "账号变化或会话版本冲突",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ChatSessionAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "type": "string"
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": true,
+                        "type": "string",
+                        "description": "允许的服务相对路径，如 chat/completions 或 anthropic/v1/files"
+                    },
+                    {
+                        "name": "X-Chat-Owner",
+                        "in": "header",
+                        "required": false,
+                        "type": "integer",
+                        "description": "发起请求时的账号ID，变化时拒绝执行"
+                    }
+                ],
+                "description": "只允许支持的模型服务接口，使用当前账号的加密密钥；响应保持原始 SSE、JSON 或二进制，不套统一 JSON 信封。"
+            }
         }
     },
     "definitions": {
@@ -7943,7 +9294,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "form": {
-                    "description": "Front           bool        ` + "`" + `json:\"front\"` + "`" + `           // 是否前端可见",
+                    "description": "Front           bool        \u0060json:\"front\"\u0060           // 是否前端可见",
                     "type": "boolean"
                 },
                 "primaryKey": {
@@ -9277,6 +10628,137 @@ const docTemplate = `{
                     "$ref": "#/definitions/config.Server"
                 }
             }
+        },
+        "chat.Login": {
+            "type": "object",
+            "required": [
+                "username",
+                "password"
+            ],
+            "properties": {
+                "username": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "format": "password"
+                }
+            }
+        },
+        "chat.Register": {
+            "type": "object",
+            "required": [
+                "username",
+                "password",
+                "inviteCode"
+            ],
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 32
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "format": "password"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "inviteCode": {
+                    "type": "string"
+                }
+            }
+        },
+        "chat.Password": {
+            "type": "object",
+            "required": [
+                "oldPassword",
+                "newPassword"
+            ],
+            "properties": {
+                "oldPassword": {
+                    "type": "string",
+                    "format": "password"
+                },
+                "newPassword": {
+                    "type": "string",
+                    "minLength": 8,
+                    "format": "password"
+                }
+            }
+        },
+        "chat.Channel": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string",
+                    "enum": [
+                        "deepseek",
+                        "openai"
+                    ]
+                },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string",
+                    "format": "password",
+                    "description": "新密钥；未提供或留空保留旧值，不从服务器回显"
+                },
+                "clearKey": {
+                    "type": "boolean"
+                },
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "chat.Session": {
+            "type": "object",
+            "required": [
+                "id",
+                "messages"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "updatedAt": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "rootMessageId": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -9284,6 +10766,12 @@ const docTemplate = `{
             "type": "apiKey",
             "name": "x-token",
             "in": "header"
+        },
+        "ChatSessionAuth": {
+            "type": "apiKey",
+            "name": "Cookie",
+            "in": "header",
+            "description": "HttpOnly chat-session Cookie；Swagger 2.0 使用 Cookie header 表示。"
         }
     },
     "tags": [
@@ -9294,7 +10782,10 @@ const docTemplate = `{
             "description": "用户",
             "name": "SysUser"
         }
-    ]
+    ],
+    "schemes": {{ marshal .Schemes }},
+    "host": "{{.Host}}",
+    "basePath": "{{.BasePath}}"
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
