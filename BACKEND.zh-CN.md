@@ -1,6 +1,6 @@
-# Go 后端与云端账号
+# DeepTalk：Go 后端与云端账号
 
-此二开版本可连接独立的 Gin-Vue-Admin Go 后端和 PostgreSQL。未登录继续使用本地模式，
+DeepTalk 的聊天前台基于 DeepSeek 官方 React `chat-demo`，连接独立的 Gin-Vue-Admin Go 后端和 PostgreSQL。未登录继续使用本地模式，
 登录后会话、消息分支和附件原件保存在账号下，可以在不同设备查看；已配置的云端渠道密钥不回显。
 
 - 用户端：`https://101.34.83.198/`

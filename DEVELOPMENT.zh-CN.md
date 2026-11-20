@@ -1,4 +1,6 @@
-# 二开与官方同步
+# DeepTalk 二开与官方同步
+
+产品名称为 **DeepTalk**，由用户于 2026-11-20 确定。聊天前台基于 DeepSeek 官方开源的 `chat-demo` 二次开发。
 
 本机代码位于 `/home/ubuntu/chat-demo`，已创建并切换到 `custom` 分支。二开修改、维护脚本和本说明保存在该分支。
 
