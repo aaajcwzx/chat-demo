@@ -22,7 +22,7 @@ chat_demo_require_custom_clean() {
 }
 
 chat_demo_run_node() (
-  chat_build_guard || exit 1
+  chat_build_guard 600 || exit 1
   CHAT_DEMO_CONTAINER_NAME="chat-demo-${1}-$(id -u)-${BASHPID}-${RANDOM}"
   chat_build_watch_memory "$CHAT_DEMO_CONTAINER_NAME" &
   CHAT_DEMO_WATCH_PID=$!
