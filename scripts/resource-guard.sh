@@ -6,6 +6,12 @@ CHAT_BUILD_RESERVE_MIB=1024
 CHAT_BUILD_CPU="$(awk '/^Cpus_allowed_list:/ { print $2 }' /proc/self/status | cut -d, -f1 | cut -d- -f1)"
 
 chat_build_guard() {
+  local chat_requested_mib="${1:-640}"
+  if [[ ! "$chat_requested_mib" =~ ^[0-9]+$ ]] || (( chat_requested_mib < 64 || chat_requested_mib > 640 )); then
+    printf '重任务预算只能在 64–640 MiB 范围内，不能提高生产机上限。\n' >&2
+    return 1
+  fi
+  CHAT_BUILD_LIMIT_MIB="$chat_requested_mib"
   install -d "$(dirname -- "$CHAT_BUILD_LOCK_FILE")"
   exec {CHAT_BUILD_LOCK_FD}>"$CHAT_BUILD_LOCK_FILE"
   if ! flock -n "$CHAT_BUILD_LOCK_FD"; then

@@ -1,0 +1,58 @@
+name: Chat backend and admin build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [backend-custom]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-backend-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+          cache-dependency-path: server/go.sum
+      - name: Test Go chat services
+        working-directory: server
+        run: go test -p 1 ./plugin/chat/...
+      - name: Build backend
+        working-directory: server
+        run: |
+          mkdir -p ../build-artifact
+          CGO_ENABLED=0 go build -p 1 -trimpath -ldflags="-s -w" -o ../build-artifact/server .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+      - name: Install admin dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile --child-concurrency=1
+      - name: Build admin
+        working-directory: web
+        env:
+          NODE_OPTIONS: --max-old-space-size=2048
+          RAYON_NUM_THREADS: 2
+        run: pnpm build
+      - name: Package deployable files
+        run: |
+          cp -a web/dist build-artifact/admin
+          cp -a server/resource build-artifact/resource
+          cp LICENSE build-artifact/LICENSE
+          printf '%s\n' "$GITHUB_SHA" > build-artifact/commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chat-backend-${{ github.sha }}
+          path: build-artifact
+          retention-days: 14

@@ -2,7 +2,7 @@
 set -euo pipefail
 CHAT_BACKEND_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$CHAT_BACKEND_SOURCE/scripts/resource-guard.sh"
-chat_build_guard
+chat_build_guard 512
 CHAT_BACKEND_CACHE=/home/ubuntu/.cache/chat-demo/go
 CHAT_GO_IMAGE='golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280'
 install -d "$CHAT_BACKEND_CACHE"

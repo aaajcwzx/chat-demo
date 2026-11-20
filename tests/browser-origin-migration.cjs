@@ -3,7 +3,7 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 const {chromium}=require(process.env.CHAT_PLAYWRIGHT || '/home/ubuntu/.cache/chat-demo/browser-tools/node_modules/playwright');
 const qa=JSON.parse(fs.readFileSync('/home/ubuntu/.cache/chat-demo/backend-qa/qa.json'));
-const user=qa.testUsers[0], checks=[];
+const user=(qa.browserUsers||qa.testUsers)[0], checks=[];
 const root='/home/ubuntu/chat-demo/dist';
 const sourceOrigin='http://101.34.83.198',targetOrigin='https://101.34.83.198';
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.woff2':'font/woff2','.svg':'image/svg+xml'};

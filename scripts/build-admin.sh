@@ -2,7 +2,7 @@
 set -euo pipefail
 CHAT_ADMIN_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$CHAT_ADMIN_SOURCE/scripts/resource-guard.sh"
-chat_build_guard
+chat_build_guard 600
 CHAT_ADMIN_CACHE=/home/ubuntu/.cache/chat-demo
 CHAT_ADMIN_BUILD_CONTAINER="chat-demo-admin-build-${BASHPID}"
 chat_build_watch_memory "$CHAT_ADMIN_BUILD_CONTAINER" &
@@ -29,7 +29,7 @@ chat_admin_run_phase 256 'set -e
   fi
   test "$(/cache/tools/node_modules/.bin/pnpm --version)" = 12.6.0
   /cache/tools/node_modules/.bin/pnpm install --frozen-lockfile --store-dir /cache/pnpm-store --child-concurrency=1 --network-concurrency=4'
-chat_admin_run_phase 384 'exec node node_modules/vite/bin/vite.js build --mode production'
+chat_admin_run_phase 384 'exec timeout --kill-after=5s 120s node node_modules/vite/bin/vite.js build --mode production'
 cp "$CHAT_ADMIN_SOURCE/LICENSE" "$CHAT_ADMIN_SOURCE/web/dist/LICENSE"
 test -s "$CHAT_ADMIN_SOURCE/web/dist/index.html"
 printf 'Admin production build complete (/admin/).\n'

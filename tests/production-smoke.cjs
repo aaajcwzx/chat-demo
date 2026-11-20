@@ -1,0 +1,51 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const {chromium}=require(process.env.CHAT_PLAYWRIGHT||'/home/ubuntu/.cache/chat-demo/browser-tools/node_modules/playwright');
+const credentials=JSON.parse(fs.readFileSync('/opt/chat-demo-backend/config/credentials.json'));
+const origin='https://101.34.83.198';
+const checks=[],errors=[];
+(async()=>{
+  const browser=await chromium.launch({channel:'chromium',headless:true});
+  try {
+    const context=await browser.newContext({locale:'zh-CN',viewport:{width:1280,height:900}});
+    await context.route('https://api.deepseek.com/**',route=>{errors.push('unexpected paid-provider request');return route.abort()});
+    const page=await context.newPage();page.setDefaultTimeout(30000);page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(origin+'/admin/',{waitUntil:'networkidle'});
+    await page.getByPlaceholder('请输入用户名',{exact:true}).fill('admin');
+    await page.getByPlaceholder('请输入密码',{exact:true}).fill(credentials.adminPassword);
+    await page.getByRole('button',{name:/登\s*录/}).click();
+    await page.getByPlaceholder('请输入密码',{exact:true}).waitFor({state:'hidden'});
+    const info=await page.evaluate(async()=>{
+      const token=localStorage.getItem('token')||'';
+      const response=await fetch('/api/user/getUserInfo',{headers:{'x-token':token}});
+      return response.json();
+    });
+    assert.equal(info.code,0,'admin account info unavailable');assert.equal(info.data.userInfo.username,'admin');
+    const adminCookie=(await context.cookies()).find(cookie=>cookie.name==='x-token');assert.ok(adminCookie?.secure);
+    assert.ok(await page.locator('svg symbol#lock').count()>0,'local SVG icons were not registered');
+    assert.ok((await page.locator('body').innerText()).includes('Gin-Vue-Admin'),'GVA branding missing');
+    await page.screenshot({path:'/home/ubuntu/.cache/chat-demo/admin-production.png'});
+    checks.push('管理后台 HTTPS 登录、用户接口、Secure Cookie、本地图标和 GVA 品牌');
+    await page.goto(origin+'/',{waitUntil:'networkidle'});
+    await page.getByRole('button',{name:'登录',exact:true}).click();
+    const login=page.getByRole('dialog',{name:'登录',exact:true});
+    await login.getByLabel('用户名',{exact:true}).fill('admin');
+    await login.getByLabel('密码',{exact:true}).fill(credentials.adminPassword);
+    await login.getByRole('button',{name:'登录',exact:true}).click();await login.waitFor({state:'hidden'});
+    await page.getByRole('button',{name:'账号与同步',exact:true}).click();
+    await page.getByRole('link',{name:'管理后台',exact:true}).waitFor();
+    const me=await page.evaluate(async()=>(await(await fetch('/api/chat/auth/me')).json()).data);
+    assert.equal(me.username,'admin');assert.equal(me.admin,true);
+    const chatCookie=(await context.cookies()).find(cookie=>cookie.name==='chat-session');assert.ok(chatCookie?.secure&&chatCookie.httpOnly);
+    const channels=await page.evaluate(async()=>(await(await fetch('/api/chat/channels')).json()).data.channels);
+    assert.ok(channels.every(channel=>!('apiKey'in channel)&&!('keyCipher'in channel)));
+    await page.getByRole('button',{name:'退出登录',exact:true}).click();await page.getByRole('button',{name:'登录',exact:true}).waitFor();
+    checks.push('聊天管理员登录、管理入口、HttpOnly 会话、密钥元数据隐藏和退出');
+    const apiDoc=await(await fetch(origin+'/api/swagger/doc.json')).json();
+    assert.ok(apiDoc.paths['/chat/sessions/{id}']?.put&&apiDoc.paths['/chat/proxy/{id}']?.post);
+    checks.push('线上 Swagger 包含云端会话与模型代理契约');
+    assert.deepEqual(errors,[]);
+    fs.writeFileSync('/home/ubuntu/.cache/chat-demo/production-backend-smoke.json',JSON.stringify({passed:checks.length,checks,errors},null,2));
+    console.log(JSON.stringify({passed:checks.length,checks}));
+  } finally {await browser.close();}
+})().catch(error=>{console.error(error.stack);process.exitCode=1});

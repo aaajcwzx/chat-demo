@@ -57,6 +57,8 @@ React 的账号、网络、迁移与云端存储封装位于 `src/services/backe
 单任务硬上限 640 MiB，启动前保留至少 1 GiB 可用内存；运行中余量不足时停止自身任务。
 不要并行手动启动编译器，也不要在生产机执行全量 `swag init`；完整文档生成移到独立 CI / 开发机。
 本项目新增接口的文档由 `./scripts/update-chat-swagger.py` 轻量更新；修改接口时同步 API 注释与该脚本。
+完整管理端构建优先使用 `.github/workflows/chat-backend-build.yml` 的独立 CI，Go 与管理端仍顺序构建。
+服务器受限构建超过 120 秒会停止；不要为构建提高资源上限。当前部署可发布已经验证的静态产物。
 
 ```bash
 cd /home/ubuntu/chat-demo-backend

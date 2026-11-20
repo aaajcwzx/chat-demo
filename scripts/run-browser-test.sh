@@ -2,7 +2,7 @@
 set -euo pipefail
 CHAT_BROWSER_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$CHAT_BROWSER_SOURCE/scripts/resource-guard.sh"
-chat_build_guard
+chat_build_guard 384
 if [[ $# != 1 ]] || [[ ! -f "$1" ]]; then
   printf 'Usage: %s <test.cjs>\n' "$0" >&2; exit 2
 fi

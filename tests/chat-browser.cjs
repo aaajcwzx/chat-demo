@@ -2,7 +2,7 @@ const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const {chromium}=require(process.env.CHAT_PLAYWRIGHT || '/home/ubuntu/.cache/chat-demo/browser-tools/node_modules/playwright');
 const qa=JSON.parse(fs.readFileSync('/home/ubuntu/.cache/chat-demo/backend-qa/qa.json'));
-const [a,b]=qa.testUsers;
+let [a,b]=qa.testUsers;
 const url='http://127.0.0.1:8091/';
 const checks=[],errors=[],requests=[];
 const localSecret='fixture-browser-local-key';
@@ -40,6 +40,17 @@ async function settings(page) {
   await page.getByRole('dialog',{name:'设置',exact:true}).waitFor();
 }
 (async()=>{
+  const register=async label=>{
+    const crypto=require('node:crypto');const username='browser_'+label+'_'+crypto.randomBytes(3).toString('hex');
+    const password=crypto.randomBytes(16).toString('hex');
+    const result=await fetch('http://127.0.0.1:8093/api/chat/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,inviteCode:qa.inviteCode})});
+    const body=await result.json();assert.equal(body.code,0);
+    return {...body.data,username,password,cookie:result.headers.get('set-cookie').split(';')[0]};
+  };
+  a=await register('a');b=await register('b');
+  const setup=await fetch('http://127.0.0.1:8093/api/chat/channels/gateway-a',{method:'PUT',headers:{Cookie:a.cookie,'X-Chat-Owner':String(a.id),'Content-Type':'application/json'},body:JSON.stringify({name:'QA 渠道',protocol:'openai',baseUrl:'http://172.18.0.1:19095/v1',model:'fixture/alpha',apiKey:'fixture-browser-initial-key'})});
+  assert.equal((await setup.json()).code,0);
+  qa.browserUsers=[a,b];fs.writeFileSync('/home/ubuntu/.cache/chat-demo/backend-qa/qa.json',JSON.stringify(qa,null,2),{mode:0o600});
   const browser=await chromium.launch({channel:'chromium',headless:true});
   let debugPage;
   try {
