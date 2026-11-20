@@ -1,4 +1,6 @@
-# Chat Demo 后端与部署
+# DeepTalk 后端与部署
+
+产品名称为 **DeepTalk**，由用户于 2026-11-20 确定；前后端项目文档及后续二开统一使用此名称。
 
 用户端：https://101.34.83.198/；管理端：https://101.34.83.198/admin/。
 后端采用 Gin-Vue-Admin 官方 `v2.9.2`（实际 LICENSE 为 Apache-2.0），用户端保留 React chat-demo。

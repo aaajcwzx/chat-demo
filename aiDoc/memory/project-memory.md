@@ -7,6 +7,12 @@
 
 ## 当前关键决策
 
+### 2026-11-20
+
+- 用户确认产品名称为 **DeepTalk**；后续产品文案与二开文档统一使用该名称。
+- 聊天前台基于 DeepSeek `chat-demo`，后端及管理端基于 Gin-Vue-Admin；沿用现有源码目录、分支及部署配置。
+- 命名决定见 [DeepTalk 产品命名](business/done/deeptalk-product-name.md)。
+
 ### 2026-04-01
 
 - `AGENT.MD` 是项目级 AI 规则的唯一真源
